@@ -1,0 +1,2684 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대통령의 부동산 : 국정 운영 시뮬레이터 2.0 (심화 확장판)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        navy: {
+                            800: '#0c1322',
+                            900: '#070c18',
+                            950: '#03050c',
+                        },
+                        gold: {
+                            300: '#fde047',
+                            400: '#facc15',
+                            500: '#eab308',
+                            600: '#ca8a04',
+                            700: '#a16207',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans KR', 'sans-serif'],
+                        serif: ['Gowun Batang', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #03050c;
+            color: #f3f4f6;
+            overflow-x: hidden;
+        }
+        .serif-font {
+            font-family: 'Gowun Batang', serif;
+        }
+        .gold-gradient-text {
+            background: linear-gradient(135deg, #fef08a 0%, #eab308 50%, #854d0e 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .bg-glass {
+            background: rgba(12, 19, 34, 0.85);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(234, 179, 8, 0.25);
+        }
+        .stat-bar-transition {
+            transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .pulse-gold {
+            box-shadow: 0 0 15px rgba(234, 179, 8, 0.25);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #070c18;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #ca8a04;
+            border-radius: 3px;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-20px); opacity: 0; }
+        }
+        .floating-anim {
+            animation: floatUp 1.2s ease-out forwards;
+        }
+
+        /* Choice result history panel */
+        .result-history-panel {
+            position: sticky;
+            top: 82px;
+            align-self: flex-start;
+            max-height: calc(100vh - 104px);
+        }
+
+        .result-history-list {
+            scrollbar-width: thin;
+            scrollbar-color: #ca8a04 #070c18;
+        }
+
+        .result-history-card {
+            animation: historyIn 0.28s ease-out;
+        }
+
+        @keyframes historyIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 1023px) {
+            .result-history-panel {
+                position: relative;
+                top: auto;
+                max-height: 360px;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-navy-950 text-slate-100 flex flex-col justify-between selection:bg-gold-500 selection:text-black">
+
+    <header class="w-full bg-navy-900 border-b border-gold-600/30 px-4 py-3 sticky top-0 z-40 shadow-xl">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-full border border-gold-500 bg-navy-950 flex items-center justify-center text-gold-400 shadow-inner">
+                    <i data-lucide="landmark" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-serif font-bold text-lg md:text-xl gold-gradient-text">대통령의 부동산 2.0</h1>
+                    <p class="text-[11px] text-slate-400">국정 운영 시뮬레이터 (심화 확장판)</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div id="round-indicator" class="hidden sm:flex items-center gap-2 bg-navy-950 px-3 py-1.5 rounded-full border border-gold-500/40 text-xs font-semibold text-gold-400">
+                    <i data-lucide="calendar-check" class="w-3.5 h-3.5"></i>
+                    <span>국정 의제 <span id="current-round-num">1</span> / <span id="total-round-num">57</span></span>
+                </div>
+                <button id="sound-toggle" onclick="toggleAudio()" class="p-2 rounded-lg bg-navy-800 hover:bg-navy-700 text-slate-300 hover:text-white transition border border-slate-700">
+                    <i data-lucide="volume-2" id="sound-icon" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto w-full px-4 py-6 flex-1 flex flex-col gap-6">
+
+        <!-- Stat Gauge Dashboard (9 Factors) -->
+        <section id="stat-dashboard" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9 gap-3">
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-blue-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="users" class="w-3.5 h-3.5 text-blue-400"></i> 지지율</span><span id="stat-val-approval" class="text-xs md:text-sm font-bold text-blue-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-approval" class="bg-gradient-to-r from-blue-600 to-blue-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-cyan-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="heart-handshake" class="w-3.5 h-3.5 text-cyan-400"></i> 코어지지율</span><span id="stat-val-core" class="text-xs md:text-sm font-bold text-cyan-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-core" class="bg-gradient-to-r from-cyan-600 to-cyan-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-emerald-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="trending-up" class="w-3.5 h-3.5 text-emerald-400"></i> 매매시장안정</span><span id="stat-val-sale" class="text-xs md:text-sm font-bold text-emerald-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-sale" class="bg-gradient-to-r from-emerald-600 to-emerald-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-teal-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="home" class="w-3.5 h-3.5 text-teal-400"></i> 전세시장안정</span><span id="stat-val-jeonse" class="text-xs md:text-sm font-bold text-teal-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-jeonse" class="bg-gradient-to-r from-teal-600 to-teal-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-amber-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-400"></i> 정책신뢰도</span><span id="stat-val-trust" class="text-xs md:text-sm font-bold text-amber-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-trust" class="bg-gradient-to-r from-amber-600 to-gold-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-rose-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="heart" class="w-3.5 h-3.5 text-rose-400"></i> 서민청년민심</span><span id="stat-val-common" class="text-xs md:text-sm font-bold text-rose-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-common" class="bg-gradient-to-r from-rose-600 to-rose-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-purple-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="map-pin" class="w-3.5 h-3.5 text-purple-400"></i> 지방농촌민심</span><span id="stat-val-rural" class="text-xs md:text-sm font-bold text-purple-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-rural" class="bg-gradient-to-r from-purple-600 to-purple-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-violet-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="gem" class="w-3.5 h-3.5 text-violet-400"></i> 부유층민심</span><span id="stat-val-affluent" class="text-xs md:text-sm font-bold text-violet-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-affluent" class="bg-gradient-to-r from-violet-600 to-violet-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+            <div class="bg-glass rounded-xl p-3 relative overflow-hidden shadow-md border border-fuchsia-900/40">
+                <div class="flex items-center justify-between mb-1"><span class="text-xs font-medium text-slate-400 flex items-center gap-1"><i data-lucide="vote" class="w-3.5 h-3.5 text-fuchsia-400"></i> 다음선거승률</span><span id="stat-val-election" class="text-xs md:text-sm font-bold text-fuchsia-400">80%</span></div>
+                <div class="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden"><div id="stat-bar-election" class="bg-gradient-to-r from-fuchsia-600 to-fuchsia-400 h-full stat-bar-transition" style="width: 80%;"></div></div>
+            </div>
+        </section>
+
+        <div id="intro-screen" class="bg-glass rounded-2xl p-6 md:p-10 flex flex-col items-center text-center gap-6 shadow-2xl border border-gold-500/30 my-auto">
+            <div class="w-20 h-20 rounded-full border-2 border-gold-500 bg-navy-900 flex items-center justify-center text-gold-400 shadow-xl pulse-gold">
+                <i data-lucide="building-2" class="w-10 h-10"></i>
+            </div>
+            
+            <div class="max-w-3xl space-y-4">
+                <span class="px-3 py-1 bg-gold-500/10 border border-gold-500/40 text-gold-400 text-xs font-bold rounded-full uppercase tracking-wider">
+                    국정 비상 대책 회의
+                </span>
+                <h2 class="text-2xl md:text-3xl font-serif font-bold text-white leading-tight">
+                    "각하, 부동산 사태가 총체적 국정 위기로 번졌습니다!"
+                </h2>
+                <p class="text-sm md:text-base text-slate-300 leading-relaxed">
+                    초강력 대출 차단으로 현금 부자들만 집을 싹쓸이하고, 세입자와 임대인, 1주택자와 무주택자까지 온 국민이 아우성입니다.<br>
+                    이제부터 국토보유세, 재건축, 임대차, 세제, 공급까지 각 부처 참모들이 번갈아 올리는 <b>57개의 국정 의제</b>를 차례로 결단해야 합니다.
+                </p>
+            </div>
+
+            <button onclick="startGame()" class="px-8 py-3.5 bg-gradient-to-r from-gold-600 to-amber-500 hover:from-gold-500 hover:to-amber-400 text-navy-950 font-bold rounded-xl shadow-lg hover:shadow-gold-500/20 transition transform active:scale-95 flex items-center gap-2 text-base">
+                <i data-lucide="play" class="w-5 h-5"></i>
+                집무실 입장 & 국정 의제 결정
+            </button>
+        </div>
+
+        <div id="game-screen" class="hidden flex-1 grid lg:grid-cols-[minmax(0,1fr)_330px] gap-6 items-start">
+
+            <div class="flex flex-col gap-6 min-w-0">
+
+            <!-- Scenario Card -->
+            <div class="bg-glass rounded-2xl p-5 md:p-6 shadow-xl border border-gold-600/30 flex flex-col gap-4">
+                <div class="flex flex-wrap items-center justify-between border-b border-slate-700/60 pb-3 gap-2">
+                    <div class="flex items-center gap-2">
+                        <span id="scenario-tag" class="px-3 py-1 bg-gold-500/10 border border-gold-500/30 text-gold-400 text-xs font-semibold rounded-md">
+                            라운드 1
+                        </span>
+                        <span id="scenario-topic" class="text-xs md:text-sm text-slate-300 font-bold">
+                            주요 이슈
+                        </span>
+                    </div>
+                    <div id="factor-badges" class="flex flex-wrap gap-1 text-[11px]">
+                        <!-- Factor tags inserted via JS -->
+                    </div>
+                </div>
+
+                <h3 id="scenario-title" class="text-xl md:text-2xl font-serif font-bold text-white">
+                    의제 제목
+                </h3>
+
+                <p id="scenario-desc" class="text-sm md:text-base text-slate-200 leading-relaxed bg-navy-950/60 p-4 rounded-xl border border-slate-800">
+                    의제 상황 설명
+                </p>
+
+                <!-- Dialogue Panel (3 Cabinet Officers) -->
+                <div class="grid md:grid-cols-3 gap-3 mt-1">
+                    <!-- 정정무 정무수석 -->
+                    <div class="bg-navy-950/80 p-3.5 rounded-xl border border-blue-900/40 flex flex-col justify-between">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-7 h-7 rounded-full bg-blue-900/60 border border-blue-500/50 flex items-center justify-center text-blue-300 text-xs font-bold shrink-0">
+                                정
+                            </div>
+                            <span class="text-xs font-bold text-blue-400">정정무 정무수석</span>
+                        </div>
+                        <p id="speech-jung" class="text-xs text-slate-300 leading-normal italic">
+                            "정치적 파장을 최소화해야 합니다."
+                        </p>
+                    </div>
+
+                    <!-- 홍기획 경제부총리 -->
+                    <div class="bg-navy-950/80 p-3.5 rounded-xl border border-emerald-900/40 flex flex-col justify-between">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-7 h-7 rounded-full bg-emerald-900/60 border border-emerald-500/50 flex items-center justify-center text-emerald-300 text-xs font-bold shrink-0">
+                                홍
+                            </div>
+                            <span class="text-xs font-bold text-emerald-400">홍기획 경제부총리</span>
+                        </div>
+                        <p id="speech-hong" class="text-xs text-slate-300 leading-normal italic">
+                            "시장 원리를 외면하면 부작용이 속출합니다."
+                        </p>
+                    </div>
+
+                    <!-- 강국토 국토부 장관 -->
+                    <div class="bg-navy-950/80 p-3.5 rounded-xl border border-rose-900/40 flex flex-col justify-between">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-7 h-7 rounded-full bg-rose-900/60 border border-rose-500/50 flex items-center justify-center text-rose-300 text-xs font-bold shrink-0">
+                                강
+                            </div>
+                            <span class="text-xs font-bold text-rose-400">강국토 국토부 장관</span>
+                        </div>
+                        <p id="speech-kang" class="text-xs text-slate-300 leading-normal italic">
+                            "주택 정책은 국가 통제와 강경책이 답입니다!"
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+                <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-1 flex items-center gap-1.5">
+                    <i data-lucide="check-square" class="w-4 h-4 text-gold-400"></i> 대통령 결단 선택지
+                </h4>
+
+                <!-- Option 1: Status Quo / Rigid Control -->
+                <button onclick="makeChoice(0)" class="option-btn text-left p-4 rounded-xl bg-glass hover:bg-slate-800/90 border border-slate-700 hover:border-blue-500/60 transition group flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+                    <div class="space-y-1 flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 bg-blue-500/20 text-blue-300 text-xs font-bold rounded border border-blue-500/30">선택 1</span>
+                            <span id="opt0-title" class="font-bold text-sm md:text-base text-white group-hover:text-blue-300 transition">선택지 1 제목</span>
+                        </div>
+                        <p id="opt0-desc" class="text-xs md:text-sm text-slate-400">선택지 1 설명</p>
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-blue-400 font-semibold shrink-0">
+                        <span>결단 실행</span> <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </div>
+                </button>
+
+                <!-- Option 2: Market Friendly / Reform -->
+                <button onclick="makeChoice(1)" class="option-btn text-left p-4 rounded-xl bg-glass hover:bg-slate-800/90 border border-slate-700 hover:border-emerald-500/60 transition group flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+                    <div class="space-y-1 flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 text-xs font-bold rounded border border-emerald-500/30">선택 2</span>
+                            <span id="opt1-title" class="font-bold text-sm md:text-base text-white group-hover:text-emerald-300 transition">선택지 2 제목</span>
+                        </div>
+                        <p id="opt1-desc" class="text-xs md:text-sm text-slate-400">선택지 2 설명</p>
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-emerald-400 font-semibold shrink-0">
+                        <span>결단 실행</span> <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </div>
+                </button>
+
+                <!-- Option 3: Extreme Absurd / Outrageous -->
+                <button onclick="makeChoice(2)" class="option-btn text-left p-4 rounded-xl bg-glass hover:bg-slate-800/90 border border-slate-700 hover:border-rose-500/60 transition group flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+                    <div class="space-y-1 flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2 py-0.5 bg-rose-500/20 text-rose-300 text-xs font-bold rounded border border-rose-500/30">선택 3</span>
+                            <span id="opt2-title" class="font-bold text-sm md:text-base text-white group-hover:text-rose-300 transition">선택지 3 제목</span>
+                        </div>
+                        <p id="opt2-desc" class="text-xs md:text-sm text-slate-400">선택지 3 설명</p>
+                    </div>
+                    <div class="flex items-center gap-1 text-xs text-rose-400 font-semibold shrink-0">
+                        <span>결단 실행</span> <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                    </div>
+                </button>
+            </div>
+
+        </div>
+
+        <!-- 선택 결과 누적 탭 -->
+        <aside id="result-history-panel" class="result-history-panel bg-glass rounded-2xl border border-gold-600/30 shadow-xl overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-700/70 bg-navy-900/80 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="scroll-text" class="w-4 h-4 text-gold-400"></i>
+                        <span class="text-sm font-bold text-white">선택 결과 기록</span>
+                    </div>
+                    <span id="result-history-count" class="text-[10px] text-slate-500">0건</span>
+                </div>
+                <div id="result-history-list" class="result-history-list p-3 space-y-3 overflow-y-auto max-h-[calc(100vh-165px)]">
+                    <div id="result-history-empty" class="py-10 text-center text-xs text-slate-500 leading-relaxed">
+                        선택을 실행하면<br>결과가 이곳에 차곡차곡 쌓입니다.
+                    </div>
+                </div>
+        </aside>
+
+        <div id="feedback-modal" class="hidden">
+            <div class="bg-navy-900 border border-gold-500/40 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div class="flex items-center gap-2 text-gold-400 font-serif font-bold text-lg">
+                        <i data-lucide="newspaper" class="w-5 h-5"></i>
+                        <span>대통령 결단 속보 & 여론 파장</span>
+                    </div>
+                </div>
+
+                <!-- News Headline Box -->
+                <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <span class="text-xs font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> [긴급 속보]
+                    </span>
+                    <h4 id="news-headline" class="text-base font-bold text-white leading-snug">
+                        속보 헤드라인
+                    </h4>
+                    <p id="news-detail" class="text-xs text-slate-300 leading-relaxed">
+                        상세 반응 내용...
+                    </p>
+                </div>
+
+                <!-- Stat Changes Summary -->
+                <div class="space-y-2">
+                    <span class="text-xs font-semibold text-slate-400">지표 변동 결과:</span>
+                    <div id="stat-deltas" class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <button onclick="nextRound()" class="w-full py-3.5 bg-gradient-to-r from-gold-600 to-amber-500 hover:from-gold-500 hover:to-amber-400 text-navy-950 font-bold rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center gap-2">
+                    <span>다음 국정 의제 검토</span>
+                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="ending-screen" class="hidden bg-glass rounded-2xl p-6 md:p-10 flex flex-col items-center text-center gap-6 shadow-2xl border border-gold-500/40 my-auto">
+            <div id="ending-badge" class="w-20 h-20 rounded-full border-2 border-gold-500 bg-navy-900 flex items-center justify-center text-gold-400 shadow-xl">
+                <i data-lucide="award" class="w-10 h-10"></i>
+            </div>
+
+            <div class="max-w-2xl space-y-3">
+                <span id="ending-type" class="text-xs font-bold tracking-widest text-gold-400 uppercase">
+                    최종 국정 성과 평가서
+                </span>
+                <h2 id="ending-title" class="text-2xl md:text-3xl font-serif font-bold text-white">
+                    엔딩 타이틀
+                </h2>
+                <p id="ending-desc" class="text-sm md:text-base text-slate-300 leading-relaxed bg-navy-950/80 p-5 rounded-xl border border-slate-800 text-left whitespace-pre-line">
+                    엔딩 상세 설명...
+                </p>
+            </div>
+
+            <!-- Final Stats Grid -->
+            <div class="w-full max-w-4xl bg-navy-950/90 p-4 rounded-xl border border-slate-800 space-y-3">
+                <span class="text-xs font-bold text-slate-400">9대 지표 최종 결과</span>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 text-xs">
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">지지율:</span><span id="final-approval" class="font-bold text-blue-400">0%</span></div>
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">코어지지율:</span><span id="final-core" class="font-bold text-cyan-400">0%</span></div>
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">매매시장안정:</span><span id="final-sale" class="font-bold text-emerald-400">0%</span></div>
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">전세시장안정:</span><span id="final-jeonse" class="font-bold text-teal-400">0%</span></div>
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">정책신뢰도:</span><span id="final-trust" class="font-bold text-amber-400">0%</span></div>
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">서민청년민심:</span><span id="final-common" class="font-bold text-rose-400">0%</span></div>
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">지방농촌민심:</span><span id="final-rural" class="font-bold text-purple-400">0%</span></div>
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">부유층민심:</span><span id="final-affluent" class="font-bold text-violet-400">0%</span></div>
+                    <div class="flex justify-between bg-navy-900 p-2 rounded border border-slate-800"><span class="text-slate-400">다음선거승률:</span><span id="final-election" class="font-bold text-fuchsia-400">0%</span></div>
+                </div>
+            </div>
+
+            <button onclick="resetGame()" class="px-8 py-3.5 bg-gradient-to-r from-gold-600 to-amber-500 hover:from-gold-500 hover:to-amber-400 text-navy-950 font-bold rounded-xl shadow-lg transition transform active:scale-95 flex items-center gap-2">
+                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                국정 임기 재도전 (처음부터)
+            </button>
+        </div>
+
+    </main>
+
+    <footer class="w-full bg-navy-950 border-t border-slate-800 px-4 py-4 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+            <p>대통령의 부동산 : 국정 운영 시뮬레이터 2.0 (심화 확장판)</p>
+            <p class="text-slate-600">Simulating complex macroeconomic and political dynamics.</p>
+        </div>
+    </footer>
+
+    <script>
+        // State variables
+        let stats = {
+            approval: 80,
+            coreSupport: 80,
+            saleMarketStability: 80,
+            jeonseMarketStability: 80,
+            policyTrust: 80,
+            commonYouthSentiment: 80,
+            ruralSentiment: 80,
+            affluentSentiment: 80,
+            electionWinRate: 80
+        };
+
+        let currentRound = 0;
+        let resultHistory = [];
+        let soundEnabled = true;
+        let audioCtx = null;
+
+        // Scenarios definition (7 Rounds incorporating all user factors)
+        const scenarios = [
+            {
+                round: 1,
+                topic: "의제 1: 초강력 대출 규제와 '현금 부자 전용 리그'",
+                title: "스트레스 DSR 2단계 시행 및 실수요 자금줄 전면 차단",
+                factors: ["스트레스 DSR", "대출 한도 제한", "전세대출 규제", "현금 부자 특혜"],
+                desc: "스트레스 DSR 한도 축소와 주택가격별 대출 한도 제한, 1주택자 전세대출 규제가 연달아 터지며 청년층과 무주택 서민의 내 집 마련길이 봉쇄되었습니다. 반면 대출 없이 순수 현금 수십억을 쥔 부자들만 서울 아파트를 상싹쓸이하는 불평등 구조가 조성되었습니다.",
+                jungSpeech: "각하! 대출 사다리가 차단되어 2030 청년층이 '현금 부자만 집 사라는 거냐'며 폭발 직전입니다.",
+                hongSpeech: "가계부채 억제도 좋지만, 무주택자까지 묶어버리니 서민 주거 이동이 완벽히 차단되었습니다.",
+                kangSpeech: "대출을 풀어주면 빚내서 집 사는 투기판이 다시 벌어집니다! 규제를 고수해야 합니다!",
+                options: [
+                    {
+                        title: "[기존 고집] 가계부채 관리 최우선 & 대출 규제 전면 고수",
+                        desc: "DSR 및 대출 제한을 일절 완화하지 않고, 청년들에겐 공공임대 대기표를 받으라고 지시.",
+                        deltas: { approval: -5, stability: +5, trust: -5, publicSatisfaction: -10, regionalSentiment: -5 },
+                        headline: "대출 꽁꽁 묶인 서민들 비명... '현금 부자 리그 만들어줬다' 여론 악화",
+                        detail: "가계부채 증가는 억제되었으나, 내 집 마련이 불가능해진 무주택 서민과 청년층의 분노가 극에 달했습니다."
+                    },
+                    {
+                        title: "[시장 대전환] 무주택·청년 DSR 유연화 및 실거주 대출 숨통",
+                        desc: "자산 형성 초기 단계인 무주택자와 실거주 1주택 갈아타기 대출 한도를 현실에 맞게 완화.",
+                        deltas: { approval: +10, stability: -5, trust: +15, publicSatisfaction: +15, regionalSentiment: +5 },
+                        headline: "실수요자 대출 규제 핀셋 완화... 청년층 주거 사다리 복원 기대",
+                        detail: "무주택 청년층의 내 집 마련 기회가 열리며 정부의 현실적 국정 운영에 대한 평가가 급상승했습니다."
+                    },
+                    {
+                        title: "[막장 강경 대응] 현금 구매자 특별 자금출처 조사 & 금융 차단",
+                        desc: "현금 부자들의 거래까지 막기 위해 15억 이상 아파트 전액 현금 구매자 전원을 취득자금 특별 조사.",
+                        deltas: { approval: -15, stability: -15, trust: -20, publicSatisfaction: -15, regionalSentiment: -10 },
+                        headline: "현금 아파트 구매도 사정 당국 조사... 사유재산권 침해 위헌 논란",
+                        detail: "정상적인 재산권 행사까지 공안 국면으로 몰아가며 자본주의 시장 원리가 파괴되었다는 반발이 거세졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 2,
+                topic: "의제 2: 토지거래허가구역 확대와 다주택자 매물 잠김",
+                title: "광범위한 토허제 지정과 양도세 중과에 따른 거래 절벽",
+                factors: ["토지거래허가구역", "양도세 중과", "매물 잠김", "다주택자 규제"],
+                desc: "서울 핵심지를 토지거래허가구역으로 광범위하게 묶었으나 인근 비규제 지역으로 풍선효과가 일어났습니다. 게다가 다주택자에 대한 양도세 중과 징벌 과세로 인해 집을 파는 대신 증여나 장기 보유로 돌아서면서 시장 유통 매물이 완전히 말라버렸습니다.",
+                jungSpeech: "매물이 없으니 거래량이 토막 나고, 간간이 거래되는 건이 신고가를 경신하고 있습니다!",
+                hongSpeech: "양도세를 한시적으로 풀어줘야 다주택자 매물이 시장에 풀려 집값이 잡힙니다.",
+                kangSpeech: "양도세를 낮추면 다주택자 불로소득에 면죄부를 주는 꼴입니다. 규제지역을 더 확대합시다!",
+                options: [
+                    {
+                        title: "[기존 고집] 토지거래허가구역 유지 & 양도세 중과 고수",
+                        desc: "다주택자 양도세 중과를 유지하여 매물 잠김을 방치하고 토지거래허가구역도 유지.",
+                        deltas: { approval: -5, stability: -10, trust: -10, publicSatisfaction: -5, regionalSentiment: -5 },
+                        headline: "매물 가뭄 속 희귀 거래 신고가 경신... 거래 절벽 속 집값 불안 지속",
+                        detail: "매물 잠김 현상이 고착화되어 원하는 실수요자가 집을 구할 수 없게 되었습니다."
+                    },
+                    {
+                        title: "[시장 대전환] 양도세 중과 1년 한시 완전 면제 & 토허제 전면 재검토",
+                        desc: "다주택자가 시장에 매물을 내놓도록 양도세 중과를 한시적으로 풀고 거래 물량 확보.",
+                        deltas: { approval: +10, stability: +15, trust: +10, publicSatisfaction: +10, regionalSentiment: +10 },
+                        headline: "다주택자 매물 시장으로 쏟아진다... 거래 활성화 및 가격 하향 안정",
+                        detail: "다주택자 매물이 대거 출회되면서 집값 급등세가 꺾이고 거래가 정상화되었습니다."
+                    },
+                    {
+                        title: "[막장 강경 대응] 미매각 주택에 '공가세' 부과 & 거래 허가 심사 강화",
+                        desc: "집을 팔지 않는 다주택자 주택에 매년 시세 5% 공가세를 부과하고 토허제 허가 조건을 대폭 강화.",
+                        deltas: { approval: -20, stability: -25, trust: -30, publicSatisfaction: -20, regionalSentiment: -15 },
+                        headline: "안 팔면 세금 징벌... 초유의 '공가세' 도입에 조세 저항 폭발",
+                        detail: "사유재산에 대한 징벌 과세에 분노한 다주택자와 실거주자들이 집단 조세 저항 소송을 시작했습니다."
+                    }
+                ]
+            },
+            {
+                round: 3,
+                topic: "의제 3: 전세난과 전세 보증보험 가입요건 역풍",
+                title: "전세 사기 예방책의 부작용 및 임대차 시장 월세화 폭등",
+                factors: ["전세보증보험", "상생임대인", "월세 전환", "전세사기 예방"],
+                desc: "전세 사기를 막겠다며 HUG 전세보증보험 가입 기준(공시가 비율 120% 등)을 대폭 낮추자, 멀쩡한 다세대·빌라 임대인들이 보증금을 제때 반환하지 못해 빌라 시장이 마비되었습니다. 전세 매물이 사라지고 월세 전환이 폭등하며 서민의 월 고정 주거비가 사상 최고치를 기록 중입니다.",
+                jungSpeech: "전세 사기 예방이라는 취지는 좋은데, 빌라 거주 서민들이 전세 난민으로 내몰리고 있습니다!",
+                hongSpeech: "상생임대인 제도는 조건이 너무 복잡해 아무도 안 씁니다. 임대차 시장의 과도한 규제를 정상화해야 합니다.",
+                kangSpeech: "보증보험 기준을 완화하면 전세 사기범들에게 빌미를 줍니다. 임대인들을 더 밀어붙여야 합니다!",
+                options: [
+                    {
+                        title: "[기존 고집] 보증보험 엄격 기준 유지 & 상생임대인 조건 유지",
+                        desc: "보증보험 감정가 인정 기준을 낮게 고수하고 기존 임대차 규제 고수.",
+                        deltas: { approval: -10, stability: -10, trust: -10, publicSatisfaction: -15, regionalSentiment: -5 },
+                        headline: "빌라 전세 완전히 죽었다... 월세 폭등에 서민 주거비 부담 최고조",
+                        detail: "빌라 전세 시장이 사멸하고 월세가 급등하면서 대학생, 사회초년생의 주거 불안이 가중되었습니다."
+                    },
+                    {
+                        title: "[시장 대전환] 보증보험 공시가 반영률 현실화 & 상생임대인 인센티브 대폭 파격화",
+                        desc: "실제 시세를 반영하도록 보증보험 기준을 유연화하고 임대료를 안 올리는 임대인에게 세제 대폭 감면.",
+                        deltas: { approval: +10, stability: +15, trust: +15, publicSatisfaction: +15, regionalSentiment: +5 },
+                        headline: "전세 보증 기준 현실화... 상생임대인 증가로 전월세 시장 안정세",
+                        detail: "전세 매물이 돌아오고 월세 상승세가 꺾이며 임차인들의 주거비 부담이 대폭 줄어들었습니다."
+                    },
+                    {
+                        title: "[막장 강경 대응] 전세 제도 완전 폐지 법안 발의 & 월세 상한제 집행",
+                        desc: "전세 제도가 사기의 근본 원인이라며 전세 계약을 법적으로 금지하고 국가 지정 월세 상한제 실시.",
+                        deltas: { approval: -30, stability: -35, trust: -35, publicSatisfaction: -30, regionalSentiment: -20 },
+                        headline: "정부 '전세 계약 법적으로 금지하겠다'... 임대차 시장 대혼란 폐업 위기",
+                        detail: "대한민국 임대차 제도의 근간을 파괴하는 정책 발표에 전국적인 계약 파기와 소송전이 벌어졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 4,
+                topic: "의제 4: 임대사업자 혜택 소급 말소 및 징벌적 세제 파동",
+                title: "등록임대사업자 약속 파기와 종부세·보유세 실거주자 폭탄",
+                factors: ["임대사업자 소급 과세", "종합부동산세", "보유세", "입법 신뢰"],
+                desc: "정부 권유로 임대사업자를 등록한 이들에게 세제 혜택을 소급 축소 및 강제 말소하여 '정부 말을 들으면 바보'라는 불신이 생겼습니다. 한편 종합부동산세 및 보유세 기준 조정 미비로 수입이 없는 고령 실거주 1주택자들까지 보유세 폭탄을 맞고 있습니다.",
+                jungSpeech: "정부 말을 믿고 10년 장기 임대를 등록한 국민들에게 소급 적용을 한 건 입법 신뢰의 상실입니다!",
+                hongSpeech: "1주택 고령자까지 징벌적 세금을 때리는 건 주거 위협입니다. 보유세 부담을 즉시 정상화해야 합니다.",
+                kangSpeech: "다주택 임대사업자는 주택 사재기 세력입니다. 소급 적용이든 뭐든 혜택을 박탈하는 게 맞습니다!",
+                options: [
+                    {
+                        title: "[기존 고집] 임대사업자 강제 말소 유지 & 종부세 기준 유지",
+                        desc: "임대사업자 세제 혜택 소급 박탈을 유지하고 종부세 보유세 부담 고수.",
+                        deltas: { approval: -10, stability: -5, trust: -15, publicSatisfaction: -10, regionalSentiment: -10 },
+                        headline: "정부 약속 믿었다가 세금 폭탄... 임대사업자·1주택 고령자 동시 분노",
+                        detail: "정책 예측 가능성이 수직 하락하며 정부 발표에 대한 국민적 신뢰가 바닥을 쳤습니다."
+                    },
+                    {
+                        title: "[시장 대전환] 임대사업자 원안 혜택 소급 보장 & 1주택자 보유세 대폭 경감",
+                        desc: "정부 신뢰 회복을 위해 임대사업자 등록 당시 약속한 혜택을 완전 보장하고, 1주택 실거주자 종부세 완화.",
+                        deltas: { approval: +15, stability: +10, trust: +20, publicSatisfaction: +10, regionalSentiment: +10 },
+                        headline: "정부, 임대사업자 약속 세제 혜택 원안 복원... 정책 신뢰 회복 전기",
+                        detail: "정부의 신뢰 회복 노력과 실거주자 세금 부담 완화로 조세 저항이 수습되었습니다."
+                    },
+                    {
+                        title: "[막장 강경 대응] 임대사업자 과거 혜택 전액 소급 환수 & 보유세 2배 인상",
+                        desc: "과거 임대사업자가 감면받은 모든 세금을 소급 환수하고 1주택자 보유세율을 2배 상향.",
+                        deltas: { approval: -30, stability: -30, trust: -40, publicSatisfaction: -25, regionalSentiment: -20 },
+                        headline: "과거 혜택 전액 소급 환수 선언... '헌법상 불소급 원칙 파괴' 집단 소송",
+                        detail: "위헌적 소급 환수 조치에 위헌법률심판 청구가 이어지고 정권 불복종 운동이 터졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 5,
+                topic: "의제 5: '모두 임대주택 살라는 거냐' & 황당 설언 파동",
+                title: "소유욕 부정 및 '폐버스 청년주택' & 국회 버럭 청문회 파동",
+                factors: ["공공임대주택", "청년 주거", "인사 논란", "소유 욕구"],
+                desc: "3040 실수요자의 내 집 마련 열망을 무시하고 공공임대만 강요하자 반발이 커졌습니다. 와중에 국토부 자문회의에서 '폐버스·폐컨테이너를 리모델링해 청년주택으로 쓰자'는 아이디어가 유출되었고, 국회 청문회에서 야당이 이를 지적하자 강 장관이 '우리 딸을 모욕하는 거냐!'며 고성을 질러 국회가 파행되었습니다.",
+                jungSpeech: "각하! 장관의 '우리 딸 모욕' 버럭 파동으로 청년들의 분노가 폭발했습니다. '우리 딸은 안 살리고 남의 자식은 폐버스에 살라냐'는 겁니다!",
+                hongSpeech: "국민은 소유를 원합니다. 임대주택 중심 주거 복지 프레임을 내려놓고 내 집 마련 분양을 늘려야 합니다.",
+                kangSpeech: "(격앙되며) 폐버스가 어때서 그렇습니까! 젊을 때 고생도 해봐야죠! 제 딸을 언급한 건 명예훼손입니다!",
+                options: [
+                    {
+                        title: "[기존 고집] 강 장관 재신임 & 공공임대주택 중심 기조 유지",
+                        desc: "강 장관의 실언을 해프닝으로 무마하고, 내 집 마련 분양 대신 공공임대 확대 기조 고수.",
+                        deltas: { approval: -15, stability: -5, trust: -15, publicSatisfaction: -20, regionalSentiment: -10 },
+                        headline: "'폐버스 청년주택' 장관 재신임... 청년들 '우리가 폐기물이냐' 집회",
+                        detail: "청년층의 자존감을 짓밟은 인사 정책에 2030 세대의 국정 지지율이 한 자릿수로 추락했습니다."
+                    },
+                    {
+                        title: "[시장 대전환] 강 장관 전격 경질 & 공공 분양 및 민간 소유 사다리 전면 확대",
+                        desc: "막말 논란을 일으킨 장관을 경질하고, 임대주택 강요 대신 '지분적립형 분양' 및 민간 아파트 분양 확대.",
+                        deltas: { approval: +15, stability: +10, trust: +15, publicSatisfaction: +20, regionalSentiment: +10 },
+                        headline: "'폐버스 파동' 국토장관 경질... 내 집 마련 사다리 중심 정책 전환",
+                        detail: "국민의 소유 욕구를 인정한 과감한 인사 및 정책 전환에 청년층과 3040 세대가 환호했습니다."
+                    },
+                    {
+                        title: "[막장 강경 대응] '폐버스 주택 체험단' 청년 의무화 & 비판 언론 고소",
+                        desc: "폐버스 주택이 훌륭하다며 청년 정책 구직자들에게 폐버스 주택 1년 의무 거주를 조건으로 걸고 비판 언론 고소.",
+                        deltas: { approval: -35, stability: -20, trust: -40, publicSatisfaction: -40, regionalSentiment: -25 },
+                        headline: "'폐버스 주택 청년 의무 거주' 추진... 청년들 대규모 대선 불복 운동",
+                        detail: "청년들을 가축 취급하는 거친 정책에 전국 대학가에서 정권 퇴진 촛불 집회가 걷잡을 수 없이 퍼졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 6,
+                topic: "의제 6: 대통령 자택 '셀러 파이낸싱' & 내로남불 폭탄",
+                title: "대통령 자택 29억 매각 시 17억 근저당 설정(사금융 편법) 논란",
+                factors: ["셀러 파이낸싱", "자산 매각 논란", "내로남불", "대통령 자택"],
+                desc: "일반 국민에게는 초강력 대출 규제와 스트레스 DSR을 적용해 자금줄을 차단했으면서, 대통령 본인은 분당 자택을 매각할 때 매수자에게 17억 원대의 근저당을 직접 설정해 주는 '셀러 파이낸싱(매도인 직접 대출)' 편법으로 규제 직전 최고가에 매각한 사실이 폭로되었습니다.",
+                jungSpeech: "각하, 매수자의 잔금 이행을 돕기 위한 정당한 채권 설정이었다고 청와대 대변인실을 통해 강경 일축해야 합니다!",
+                hongSpeech: "국민은 '우린 대출 막아놓고 본인은 사금융 17억 대출을 직접 해줘서 고가 매각했냐'며 내로남불에 엄청난 배신감을 느끼고 있습니다.",
+                kangSpeech: "사적 거래일 뿐입니다! 정치적 공작으로 규정하고 법적 대응을 강행해야 합니다!",
+                options: [
+                    {
+                        title: "[기존 고집] 법적 무하자 강조 & 청와대 대변인실 정면 반박",
+                        desc: "정당한 채권 확보용 근저당일 뿐 사금융 편법이 아니라고 강경 해명하고 정책 기조 유지.",
+                        deltas: { approval: -10, stability: 0, trust: -20, publicSatisfaction: -15, regionalSentiment: -10 },
+                        headline: "청와대 '자택 매각 문제없다' 해명에도... 국민들 '역대급 내로남불' 분노",
+                        detail: "법적으로 불법이 아니라는 해명은 국민들의 상실감과 내로남불에 대한 분노를 끄지 못했습니다."
+                    },
+                    {
+                        title: "[시장 대전환] 대통령 직접 대국민 사과 & 17억 채권 전액 사회 환원 및 DSR 완화",
+                        desc: "국민 눈높이에 맞지 않았음을 솔직히 사과하고 매각 수익 일부를 청년 주거 기금으로 환원, DSR 현실화.",
+                        deltas: { approval: +10, stability: +5, trust: +15, publicSatisfaction: +15, regionalSentiment: +10 },
+                        headline: "대통령 '자택 매각 국민 눈높이 못 미쳐 송구'... 17억 채권 수익 사회 환원",
+                        detail: "대통령의 솔직한 진정성과 기부 결단으로 내로남불 프레임이 조기에 소멸되었습니다."
+                    },
+                    {
+                        title: "[막장 강경 대응] 매각 의혹 제기 언론사 폐간 추진 & 야당 의원 고발",
+                        desc: "자택 매각건을 취재한 언론사의 취재를 제한하고 의혹을 제기한 야당 국회의원들을 명예훼손 고발.",
+                        deltas: { approval: -30, stability: -15, trust: -35, publicSatisfaction: -30, regionalSentiment: -20 },
+                        headline: "자택 매각 취재 언론 탄압 파동... 야당 '대통령 탄핵안 기습 발의'",
+                        detail: "언론의 자유를 탄압하고 의혹을 고발로 입막음하려 하자 여당 내에서도 대통령 탄핵 찬성표가 나오기 시작했습니다."
+                    }
+                ]
+            },
+            {
+                round: 7,
+                topic: "의제 7: 수도권-지방 초양극화 & 공급 절벽 현실화",
+                title: "서울 '똘똘한 한 채' 쏠림과 지방 미분양 적체 & 공사비 재개발 중단",
+                factors: ["재건축초과이익환수제", "공급 절벽", "수도권-지방 양극화", "공사비 갈등"],
+                desc: "핀셋 규제가 오히려 서울 핵심지 '똘똘한 한 채' 쏠림을 심화시켜 서울은 상승하고 지방은 미분양으로 고사하는 초양극화가 터졌습니다. 한편 재초환(재건축 초과이익 환수제)과 공사비 파동, 잦은 정책 번복(조령모개)으로 전국 정비사업 현장이 중단되어 향후 4년간 극심한 '공급 절벽'이 확정되었습니다.",
+                jungSpeech: "서울 집값을 잡으려다 지방 건설사들이 연쇄 부도나고 있습니다! 지방 민심이 완전히 이반되었습니다.",
+                hongSpeech: "재초환을 전면 폐지하고 공사비 갈등을 중재하여 서울 도심 공급 물량을 즉시 확보해야 합니다.",
+                kangSpeech: "서울 재건축 완화는 투기꾼들 잔치입니다! 지방 미분양은 LH가 헐값에 매입해 임대주택으로 돌리면 됩니다!",
+                options: [
+                    {
+                        title: "[기존 고집] 재초환 유효 고수 & 지방 미분양 공공 매입 임대",
+                        desc: "재건축 초과이익 환수제를 유지하고, 지방 미분양 아파트를 LH 공공 매입으로 수습.",
+                        deltas: { approval: -10, stability: -15, trust: -10, publicSatisfaction: -10, regionalSentiment: -15 },
+                        headline: "공급 절벽 현실화로 신축 아파트 품귀... 수도권-지방 양극화 사상 최고",
+                        detail: "서울 신축 아파트 공급이 끊겨 집값이 재폭등하고, 지방은 미분양 적체로 지역 경제가 침체되었습니다."
+                    },
+                    {
+                        title: "[시장 대전환] 재초환 전면 폐지 & 지방 주택 취득 세제 혜택 대폭 부여",
+                        desc: "재초환을 폐지하여 도심 정비사업 물꼬를 터주고, 지방 주택 구매 시 1주택 간주 세제 특례 제공.",
+                        deltas: { approval: +15, stability: +20, trust: +15, publicSatisfaction: +15, regionalSentiment: +20 },
+                        headline: "재초환 폐지로 도심 아파트 공급 대거 재개... 지방 부동산 매수세 회복",
+                        detail: "도심 신규 분양 공급 물량이 확보되고 지방 주택 세제 혜택으로 수도권-지방 양극화가 크게 완화되었습니다."
+                    },
+                    {
+                        title: "[막장 강경 대응] 지방 이주 강제 법안 & 서울 주택 매매 허가제 전면 전환",
+                        desc: "서울 주택 매매를 사실상 금지하고, 다주택자들에게 지방 미분양 아파트 강제 매수 할당제 시행.",
+                        deltas: { approval: -35, stability: -40, trust: -40, publicSatisfaction: -35, regionalSentiment: -30 },
+                        headline: "서울 아파트 매매 통제 & 지방 아파트 강제 매수 할당... 자유시장 종말 선언",
+                        detail: "국민의 거주 이전의 자유와 거래의 자유를 박탈한 독재 조치에 전국적인 정권 퇴진 불복종 운동이 일어났습니다."
+                    }
+                ]
+            },
+            {
+                round: 8,
+                topic: "의제 8: 정책실장의 건의",
+                title: "모든 토지 소유자에게 국토보유세를 과세하여 불로소득을… — 강행이냐 절충이냐",
+                factors: ["국토보유세", "종합부동산세"],
+                desc: "정책실장이(가) \"대통령님! 토지 불로소득을 싹 환수하는 국토보유세야말로 역사적 결단입니다. 세금 폭탄…\"라며 강경 추진을 건의했습니다. 현실에서는 세금 폭탄 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "대통령님! 토지 불로소득을 싹 환수하는 국토보유세야말로 역사적 결단입니다. 세금 폭탄 비판 따위는 무시하시고 강력하게 밀어붙이시겠습니까?",
+                hongSpeech: "\"현행 종합부동산세 체계를 유지하며 세부 세율 및 과세…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 전 국토를 국가 소유로 환수하고, 국민들에게 추첨을…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 모든 토지 소유자에게 국토보유세를 과세하여 불로소득을…",
+                        desc: "모든 토지 소유자에게 국토보유세를 과세하여 불로소득을 환수하고 기본소득 재원으로 활용한다.",
+                        deltas: { approval: -9, stability: -5, trust: -8, publicSatisfaction: -14, regionalSentiment: -6 },
+                        headline: "『모든 토지 소유자에게 국토보유세를 과세하여 불로소득을…』 강행... 세금 폭탄 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 세금 폭탄 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 현행 종합부동산세 체계를 유지하며 세부 세율 및 과세…",
+                        desc: "현행 종합부동산세 체계를 유지하며 세부 세율 및 과세 표준만 물가상승률에 맞춰 미세 조정한다.",
+                        deltas: { approval: 11, stability: 9, trust: 15, publicSatisfaction: 8, regionalSentiment: 13 },
+                        headline: "『현행 종합부동산세 체계를 유지하며 세부 세율 및 과세…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 전 국토를 국가 소유로 환수하고, 국민들에게 추첨을…",
+                        desc: "전 국토를 국가 소유로 환수하고, 국민들에게 추첨을 통해 제비뽑기로 땅을 10년씩 대여해 준다.",
+                        deltas: { approval: -22, stability: -26, trust: -28, publicSatisfaction: -23, regionalSentiment: -14 },
+                        headline: "「전 국토를 국가 소유로 환수하고, 국민들에게 추첨을…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 9,
+                topic: "의제 9: 국토교통부 장관의 건의",
+                title: "국가 재정을 투입해 장기 임대가 가능한 공공 기본주택… — 강행이냐 절충이냐",
+                factors: ["용적률"],
+                desc: "국토교통부 장관이(가) \"기본주택 100만 가구 공급이야말로 역대 최고의 서민 복지입니다! 재정 부담이나 질적…\"라며 강경 추진을 건의했습니다. 현실에서는 재정 부담이나 질적 저하 우려이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "기본주택 100만 가구 공급이야말로 역대 최고의 서민 복지입니다! 재정 부담이나 질적 저하 우려는 무시하고 전격 발표하시겠습니까?",
+                hongSpeech: "\"민간 건설사가 임대주택을 일정 비율 이상 건설할 경우…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 주택난 해소를 위해 한강 위와 남산공원에 100층짜리…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 국가 재정을 투입해 장기 임대가 가능한 공공 기본주택…",
+                        desc: "국가 재정을 투입해 장기 임대가 가능한 공공 기본주택 100만 가구를 대량 건설한다.",
+                        deltas: { approval: -5, stability: -8, trust: -17, publicSatisfaction: -5, regionalSentiment: -7 },
+                        headline: "『국가 재정을 투입해 장기 임대가 가능한 공공 기본주택…』 강행... 재정 부담이나 질적 저하 우려 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 재정 부담이나 질적 저하 우려이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 민간 건설사가 임대주택을 일정 비율 이상 건설할 경우…",
+                        desc: "민간 건설사가 임대주택을 일정 비율 이상 건설할 경우 용적률 인센티브를 부여해 자연스러운 공급을 유도한다.",
+                        deltas: { approval: 9, stability: 15, trust: 10, publicSatisfaction: 6, regionalSentiment: 15 },
+                        headline: "『민간 건설사가 임대주택을 일정 비율 이상 건설할 경우…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 주택난 해소를 위해 한강 위와 남산공원에 100층짜리…",
+                        desc: "주택난 해소를 위해 한강 위와 남산공원에 100층짜리 캡슐형 초고층 아파트를 짓는다.",
+                        deltas: { approval: -20, stability: -26, trust: -21, publicSatisfaction: -17, regionalSentiment: -19 },
+                        headline: "「주택난 해소를 위해 한강 위와 남산공원에 100층짜리…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 10,
+                topic: "의제 10: 정무수석의 건의",
+                title: "무주택자의 내 집 마련 부담을 낮추기 위해… — 강행이냐 절충이냐",
+                factors: ["분양가상한제"],
+                desc: "정무수석이(가) \"분양가상한제를 전국으로 확대해 집값을 확 죄어버리시지요! 공급 가뭄이 온다는 건상들의…\"라며 강경 추진을 건의했습니다. 현실에서는 공급 가뭄이 온다는 건상들의 불만이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "분양가상한제를 전국으로 확대해 집값을 확 죄어버리시지요! 공급 가뭄이 온다는 건상들의 불만은 짓밟아버리면 그만입니다. 추진하시겠습니까?",
+                hongSpeech: "\"투기 과열 우려가 있는 일부 정비구역 및 신규 지정…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 모든 아파트 분양가를 1억 원으로 법적 고정하고,…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 무주택자의 내 집 마련 부담을 낮추기 위해…",
+                        desc: "무주택자의 내 집 마련 부담을 낮추기 위해 분양가상한제를 전국으로 확대 적용한다.",
+                        deltas: { approval: -15, stability: -7, trust: -13, publicSatisfaction: -12, regionalSentiment: -4 },
+                        headline: "『무주택자의 내 집 마련 부담을 낮추기 위해…』 강행... 공급 가뭄이 온다는 건상들의 불만 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 공급 가뭄이 온다는 건상들의 불만이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 투기 과열 우려가 있는 일부 정비구역 및 신규 지정…",
+                        desc: "투기 과열 우려가 있는 일부 정비구역 및 신규 지정 지구에만 제한적으로 분양가상한제를 유지한다.",
+                        deltas: { approval: 8, stability: 9, trust: 12, publicSatisfaction: 8, regionalSentiment: 9 },
+                        headline: "『투기 과열 우려가 있는 일부 정비구역 및 신규 지정…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 모든 아파트 분양가를 1억 원으로 법적 고정하고,…",
+                        desc: "모든 아파트 분양가를 1억 원으로 법적 고정하고, 남는 차액은 국가가 가상화폐로 보상해 준다.",
+                        deltas: { approval: -33, stability: -30, trust: -25, publicSatisfaction: -30, regionalSentiment: -17 },
+                        headline: "「모든 아파트 분양가를 1억 원으로 법적 고정하고,…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 11,
+                topic: "의제 11: 민정수석의 건의",
+                title: "부동산 시장 내 모든 거래와 계좌를 전담 감시하는… — 강행이냐 절충이냐",
+                factors: ["국정 결단", "참모 회의"],
+                desc: "민정수석이(가) \"부동산 감독원을 만들어서 국민들의 부동산 거래를 일일이 감시·단속하시지요! 빅브라더…\"라며 강경 추진을 건의했습니다. 현실에서는 빅브라더 논란이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "부동산 감독원을 만들어서 국민들의 부동산 거래를 일일이 감시·단속하시지요! 빅브라더 논란이 좀 일겠지만 투기꾼 잡는 게 먼저 아니겠습니까?",
+                hongSpeech: "\"기존 국토교통부와 국세청 내 모니터링 및 조사 전담…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 모든 국민의 집에 CCTV를 설치해 집을 살 때…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 부동산 시장 내 모든 거래와 계좌를 전담 감시하는…",
+                        desc: "부동산 시장 내 모든 거래와 계좌를 전담 감시하는 강력한 독립 감독기관을 신설한다.",
+                        deltas: { approval: -11, stability: -7, trust: -8, publicSatisfaction: -7, regionalSentiment: -11 },
+                        headline: "『부동산 시장 내 모든 거래와 계좌를 전담 감시하는…』 강행... 빅브라더 논란 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 빅브라더 논란이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 기존 국토교통부와 국세청 내 모니터링 및 조사 전담…",
+                        desc: "기존 국토교통부와 국세청 내 모니터링 및 조사 전담 인력만 일부 확충한다.",
+                        deltas: { approval: 9, stability: 12, trust: 14, publicSatisfaction: 11, regionalSentiment: 15 },
+                        headline: "『기존 국토교통부와 국세청 내 모니터링 및 조사 전담…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 모든 국민의 집에 CCTV를 설치해 집을 살 때…",
+                        desc: "모든 국민의 집에 CCTV를 설치해 집을 살 때 누구와 무슨 대화를 나누는지 실시간 모니터링한다.",
+                        deltas: { approval: -28, stability: -23, trust: -24, publicSatisfaction: -15, regionalSentiment: -22 },
+                        headline: "「모든 국민의 집에 CCTV를 설치해 집을 살 때…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 12,
+                topic: "의제 12: 기획재정부 장관의 건의",
+                title: "민간 개발 사업의 불로소득을 막기 위해 개발이익 환수… — 강행이냐 절충이냐",
+                factors: ["개발이익 환수", "기부채납"],
+                desc: "기획재정부 장관이(가) \"개발이익 환수율을 90%까지 올리면 불로소득을 회수하는 통쾌한 개혁이 됩니다! 민간…\"라며 강경 추진을 건의했습니다. 현실에서는 민간 사업이 전면 중단될 거란 경고이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "개발이익 환수율을 90%까지 올리면 불로소득을 회수하는 통쾌한 개혁이 됩니다! 민간 사업이 전면 중단될 거란 경고는 무시할까요?",
+                hongSpeech: "\"개발 이익의 일부를 도로·공원 등 지역 기반시설로…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 개발 사업에서 이익이 발생하면 개발업자 대신 건설…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 민간 개발 사업의 불로소득을 막기 위해 개발이익 환수…",
+                        desc: "민간 개발 사업의 불로소득을 막기 위해 개발이익 환수 비율을 90%까지 대폭 올린다.",
+                        deltas: { approval: -11, stability: -9, trust: -13, publicSatisfaction: -10, regionalSentiment: -5 },
+                        headline: "『민간 개발 사업의 불로소득을 막기 위해 개발이익 환수…』 강행... 민간 사업이 전면 중단될 거란 경고 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 민간 사업이 전면 중단될 거란 경고이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 개발 이익의 일부를 도로·공원 등 지역 기반시설로…",
+                        desc: "개발 이익의 일부를 도로·공원 등 지역 기반시설로 기부채납받는 현행 방식을 유지·보완한다.",
+                        deltas: { approval: 15, stability: 12, trust: 15, publicSatisfaction: 11, regionalSentiment: 5 },
+                        headline: "『개발 이익의 일부를 도로·공원 등 지역 기반시설로…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 개발 사업에서 이익이 발생하면 개발업자 대신 건설…",
+                        desc: "개발 사업에서 이익이 발생하면 개발업자 대신 건설 현장 인근 동네 주민들에게 전액 현금으로 나눠준다.",
+                        deltas: { approval: -34, stability: -26, trust: -21, publicSatisfaction: -28, regionalSentiment: -18 },
+                        headline: "「개발 사업에서 이익이 발생하면 개발업자 대신 건설…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 13,
+                topic: "의제 13: 비서실장의 건의",
+                title: "다주택자를 징벌하기 위해 종합부동산세 최고 세율을… — 강행이냐 절충이냐",
+                factors: ["종합부동산세", "종부세", "공시가격"],
+                desc: "비서실장이(가) \"다주택자 종부세 최고세율을 징벌적으로 올리셔야 투기꾼들이 사멸합니다! 조세 포탈이나…\"라며 강경 추진을 건의했습니다. 현실에서는 거센 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "다주택자 종부세 최고세율을 징벌적으로 올리셔야 투기꾼들이 사멸합니다! 조세 포탈이나 전세가 상승 부작용은 나중에 생각하시고 결단하시겠습니까?",
+                hongSpeech: "\"다주택자 세율을 현행 수준으로 고정하고 과세 기준액만…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 다주택자가 집을 팔지 않으면 소유한 주택 개수만큼…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 다주택자를 징벌하기 위해 종합부동산세 최고 세율을…",
+                        desc: "다주택자를 징벌하기 위해 종합부동산세 최고 세율을 현행의 두 배로 인상한다.",
+                        deltas: { approval: -11, stability: -15, trust: -15, publicSatisfaction: -13, regionalSentiment: -9 },
+                        headline: "『다주택자를 징벌하기 위해 종합부동산세 최고 세율을…』 강행... 거센 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 거센 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 다주택자 세율을 현행 수준으로 고정하고 과세 기준액만…",
+                        desc: "다주택자 세율을 현행 수준으로 고정하고 과세 기준액만 공시가격 변동에 연동한다.",
+                        deltas: { approval: 8, stability: 18, trust: 16, publicSatisfaction: 11, regionalSentiment: 10 },
+                        headline: "『다주택자 세율을 현행 수준으로 고정하고 과세 기준액만…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 다주택자가 집을 팔지 않으면 소유한 주택 개수만큼…",
+                        desc: "다주택자가 집을 팔지 않으면 소유한 주택 개수만큼 매년 군대에 재입대시키는 법을 만든다.",
+                        deltas: { approval: -25, stability: -21, trust: -20, publicSatisfaction: -24, regionalSentiment: -13 },
+                        headline: "「다주택자가 집을 팔지 않으면 소유한 주택 개수만큼…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 14,
+                topic: "의제 14: 여당 원내대표의 건의",
+                title: "1주택자라도 10년 이상 실제 거주하지 않으면… — 강행이냐 절충이냐",
+                factors: ["양도소득세", "양도세"],
+                desc: "여당 원내대표이(가) \"1주택자라도 실거주 10년을 못 채우면 양도세를 폭탄으로 때려야 갭투자를 뿌리…\"라며 강경 추진을 건의했습니다. 현실에서는 선의의 피해자 반발이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "1주택자라도 실거주 10년을 못 채우면 양도세를 폭탄으로 때려야 갭투자를 뿌리 뽑습니다! 선의의 피해자 반발은 묵살하고 법안을 제출할까요?",
+                hongSpeech: "\"보유 기간과 거주 기간을 균형 있게 합산하여…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 집을 팔 때 양도세를 내는 대신 거주했던 집의 기둥…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 1주택자라도 10년 이상 실제 거주하지 않으면…",
+                        desc: "1주택자라도 10년 이상 실제 거주하지 않으면 양도소득세 비과세 혜택을 전면 박탈한다.",
+                        deltas: { approval: -14, stability: -12, trust: -17, publicSatisfaction: -11, regionalSentiment: -8 },
+                        headline: "『1주택자라도 10년 이상 실제 거주하지 않으면…』 강행... 선의의 피해자 반발 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 선의의 피해자 반발이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 보유 기간과 거주 기간을 균형 있게 합산하여…",
+                        desc: "보유 기간과 거주 기간을 균형 있게 합산하여 장기보유특별공제율을 차등 적용한다.",
+                        deltas: { approval: 12, stability: 13, trust: 8, publicSatisfaction: 14, regionalSentiment: 14 },
+                        headline: "『보유 기간과 거주 기간을 균형 있게 합산하여…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 집을 팔 때 양도세를 내는 대신 거주했던 집의 기둥…",
+                        desc: "집을 팔 때 양도세를 내는 대신 거주했던 집의 기둥 하나를 국가에 기부하도록 한다.",
+                        deltas: { approval: -30, stability: -27, trust: -20, publicSatisfaction: -17, regionalSentiment: -11 },
+                        headline: "「집을 팔 때 양도세를 내는 대신 거주했던 집의 기둥…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 15,
+                topic: "의제 15: 대변인의 건의",
+                title: "다주택자 양도세 중과 유예 조치를 즉시 철회하고… — 강행이냐 절충이냐",
+                factors: ["양도세"],
+                desc: "대변인이(가) \"양도세 중과 유예를 당장 철회하고 '강력 과세'로 가시는 것이 각하의 단호함에…\"라며 강경 추진을 건의했습니다. 현실에서는 매물 잠김으로 집값이 폭등한다는 우려이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "양도세 중과 유예를 당장 철회하고 '강력 과세'로 가시는 것이 각하의 단호함에 어울립니다! 매물 잠김으로 집값이 폭등한다는 우려는 거두시겠습니까?",
+                hongSpeech: "\"양도세 중과 유예 기간을 연장하여 다주택자가 시장에…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 다주택자가 매물을 내놓을 때마다 국가에서 금메달과…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 다주택자 양도세 중과 유예 조치를 즉시 철회하고…",
+                        desc: "다주택자 양도세 중과 유예 조치를 즉시 철회하고 강력한 중과세율을 적용한다.",
+                        deltas: { approval: -9, stability: -9, trust: -12, publicSatisfaction: -15, regionalSentiment: -8 },
+                        headline: "『다주택자 양도세 중과 유예 조치를 즉시 철회하고…』 강행... 매물 잠김으로 집값이 폭등한다는 우려 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 매물 잠김으로 집값이 폭등한다는 우려이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 양도세 중과 유예 기간을 연장하여 다주택자가 시장에…",
+                        desc: "양도세 중과 유예 기간을 연장하여 다주택자가 시장에 매물을 풀 수 있는 퇴로를 열어준다.",
+                        deltas: { approval: 6, stability: 8, trust: 11, publicSatisfaction: 9, regionalSentiment: 6 },
+                        headline: "『양도세 중과 유예 기간을 연장하여 다주택자가 시장에…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 다주택자가 매물을 내놓을 때마다 국가에서 금메달과…",
+                        desc: "다주택자가 매물을 내놓을 때마다 국가에서 금메달과 훈장을 수여하고 카퍼레이드를 열어준다.",
+                        deltas: { approval: -25, stability: -24, trust: -31, publicSatisfaction: -27, regionalSentiment: -23 },
+                        headline: "「다주택자가 매물을 내놓을 때마다 국가에서 금메달과…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 16,
+                topic: "의제 16: 행정안전부 장관의 건의",
+                title: "공시가격 현실화율을 시세의 90%까지 속도전으로… — 강행이냐 절충이냐",
+                factors: ["공시가격"],
+                desc: "행정안전부 장관이(가) \"시세의 90%까지 공시가격을 강제로 올리는 로드맵을 고수하십시오! 세금 폭탄으로 서민…\"라며 강경 추진을 건의했습니다. 현실에서는 거센 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "시세의 90%까지 공시가격을 강제로 올리는 로드맵을 고수하십시오! 세금 폭탄으로 서민 비명이 빗발쳐도 국고는 든든해집니다. 추진할까요?",
+                hongSpeech: "\"급격한 세 부담 완화를 위해 공시가격 인상 속도를…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 부동산 공시가격을 매일 주식 시장처럼 변동되게 만들어…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 공시가격 현실화율을 시세의 90%까지 속도전으로…",
+                        desc: "공시가격 현실화율을 시세의 90%까지 속도전으로 인상하는 로드맵을 강행한다.",
+                        deltas: { approval: -13, stability: -7, trust: -16, publicSatisfaction: -12, regionalSentiment: -4 },
+                        headline: "『공시가격 현실화율을 시세의 90%까지 속도전으로…』 강행... 거센 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 거센 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 급격한 세 부담 완화를 위해 공시가격 인상 속도를…",
+                        desc: "급격한 세 부담 완화를 위해 공시가격 인상 속도를 시장 상항과 물가에 맞춰 유연하게 조율한다.",
+                        deltas: { approval: 11, stability: 9, trust: 11, publicSatisfaction: 6, regionalSentiment: 7 },
+                        headline: "『급격한 세 부담 완화를 위해 공시가격 인상 속도를…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 부동산 공시가격을 매일 주식 시장처럼 변동되게 만들어…",
+                        desc: "부동산 공시가격을 매일 주식 시장처럼 변동되게 만들어 매일 아침 세금을 새로 계산한다.",
+                        deltas: { approval: -31, stability: -19, trust: -30, publicSatisfaction: -28, regionalSentiment: -10 },
+                        headline: "「부동산 공시가격을 매일 주식 시장처럼 변동되게 만들어…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 17,
+                topic: "의제 17: 경제수석의 건의",
+                title: "세입자 보호를 명목으로 임대차 3법을 유지하고… — 강행이냐 절충이냐",
+                factors: ["임대차 3법", "전월세상한제"],
+                desc: "경제수석이(가) \"임대차 3법을 더욱 강화해 계약갱신을 4년이 아니라 6년으로 늘리시지요! 임대차…\"라며 강경 추진을 건의했습니다. 현실에서는 거센 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "임대차 3법을 더욱 강화해 계약갱신을 4년이 아니라 6년으로 늘리시지요! 임대차 시장이 얼어붙는다는 시장의 소리는 무시하고 유지할까요?",
+                hongSpeech: "\"임대차 시장 왜곡을 줄이기 위해 전월세상한제 요율을…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 모든 집주인과 세입자가 한 집에 같이 살도록 강제하여…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 세입자 보호를 명목으로 임대차 3법을 유지하고…",
+                        desc: "세입자 보호를 명목으로 임대차 3법을 유지하고 계약갱신청구권을 최대 6년으로 연장한다.",
+                        deltas: { approval: -11, stability: -12, trust: -17, publicSatisfaction: -11, regionalSentiment: -3 },
+                        headline: "『세입자 보호를 명목으로 임대차 3법을 유지하고…』 강행... 거센 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 거센 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 임대차 시장 왜곡을 줄이기 위해 전월세상한제 요율을…",
+                        desc: "임대차 시장 왜곡을 줄이기 위해 전월세상한제 요율을 시장 금리와 연동하여 신음성을 확보한다.",
+                        deltas: { approval: 6, stability: 17, trust: 8, publicSatisfaction: 9, regionalSentiment: 7 },
+                        headline: "『임대차 시장 왜곡을 줄이기 위해 전월세상한제 요율을…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 모든 집주인과 세입자가 한 집에 같이 살도록 강제하여…",
+                        desc: "모든 집주인과 세입자가 한 집에 같이 살도록 강제하여 임대차 계약 자체를 없애버린다.",
+                        deltas: { approval: -21, stability: -23, trust: -20, publicSatisfaction: -25, regionalSentiment: -17 },
+                        headline: "「모든 집주인과 세입자가 한 집에 같이 살도록 강제하여…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 18,
+                topic: "의제 18: 측근 의원의 건의",
+                title: "임대사업자 특혜 논란을 잠재우기 위해 기존… — 강행이냐 절충이냐",
+                factors: ["등록임대사업자"],
+                desc: "측근 의원이(가) \"등록임대사업자 세제 혜택을 당장 전면 폐지해 버리시지요! 신뢰 보호 원칙 위반이라는…\"라며 강경 추진을 건의했습니다. 현실에서는 거센 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "등록임대사업자 세제 혜택을 당장 전면 폐지해 버리시지요! 신뢰 보호 원칙 위반이라는 임대사업자들 항의는 무시하면 됩니다. 바로 시행할까요?",
+                hongSpeech: "\"기존 사업자의 신뢰 보호를 위해 혜택을 유지하되,…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 임대사업자로 등록하면 세금 면제 대신 일주일에 한…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 임대사업자 특혜 논란을 잠재우기 위해 기존…",
+                        desc: "임대사업자 특혜 논란을 잠재우기 위해 기존 등록임대사업자의 세제 혜택을 소급하여 전면 폐지한다.",
+                        deltas: { approval: -7, stability: -9, trust: -9, publicSatisfaction: -15, regionalSentiment: -12 },
+                        headline: "『임대사업자 특혜 논란을 잠재우기 위해 기존…』 강행... 거센 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 거센 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 기존 사업자의 신뢰 보호를 위해 혜택을 유지하되,…",
+                        desc: "기존 사업자의 신뢰 보호를 위해 혜택을 유지하되, 신규 등록 시 적용 기준만 강화한다.",
+                        deltas: { approval: 13, stability: 17, trust: 8, publicSatisfaction: 12, regionalSentiment: 6 },
+                        headline: "『기존 사업자의 신뢰 보호를 위해 혜택을 유지하되,…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 임대사업자로 등록하면 세금 면제 대신 일주일에 한…",
+                        desc: "임대사업자로 등록하면 세금 면제 대신 일주일에 한 번씩 관가에 나와 청소를 하도록 한다.",
+                        deltas: { approval: -20, stability: -22, trust: -29, publicSatisfaction: -30, regionalSentiment: -12 },
+                        headline: "「임대사업자로 등록하면 세금 면제 대신 일주일에 한…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 19,
+                topic: "의제 19: 국토부 차관의 건의",
+                title: "정비사업 불로소득 환수를 위해 재건축 초과이익 환수… — 강행이냐 절충이냐",
+                factors: ["재건축 초과이익환수"],
+                desc: "국토부 차관이(가) \"재건축 초과이익환수제를 강력하게 적용해 환수금을 대폭 늘리시지요! 도심 재건축이…\"라며 강경 추진을 건의했습니다. 현실에서는 도심 재건축이 멈춰서 공급이 끊긴다는 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "재건축 초과이익환수제를 강력하게 적용해 환수금을 대폭 늘리시지요! 도심 재건축이 멈춰서 공급이 끊긴다는 비판은 과감히 뛰어넘으시겠습니까?",
+                hongSpeech: "\"재건축 사업 활성화를 위해 면제 초과금액 기준을…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 재건축으로 이익이 나면 아파트 단지 이름을 국가가…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 정비사업 불로소득 환수를 위해 재건축 초과이익 환수…",
+                        desc: "정비사업 불로소득 환수를 위해 재건축 초과이익 환수 부담금 기준을 한층 강화한다.",
+                        deltas: { approval: -14, stability: -11, trust: -17, publicSatisfaction: -10, regionalSentiment: -9 },
+                        headline: "『정비사업 불로소득 환수를 위해 재건축 초과이익 환수…』 강행... 도심 재건축이 멈춰서 공급이 끊긴다는 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 도심 재건축이 멈춰서 공급이 끊긴다는 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 재건축 사업 활성화를 위해 면제 초과금액 기준을…",
+                        desc: "재건축 사업 활성화를 위해 면제 초과금액 기준을 상향하고 단지별 부과율을 완화한다.",
+                        deltas: { approval: 11, stability: 11, trust: 8, publicSatisfaction: 9, regionalSentiment: 14 },
+                        headline: "『재건축 사업 활성화를 위해 면제 초과금액 기준을…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 재건축으로 이익이 나면 아파트 단지 이름을 국가가…",
+                        desc: "재건축으로 이익이 나면 아파트 단지 이름을 국가가 지정하는 해괴한 이름으로 강제 개명한다.",
+                        deltas: { approval: -31, stability: -29, trust: -20, publicSatisfaction: -15, regionalSentiment: -21 },
+                        headline: "「재건축으로 이익이 나면 아파트 단지 이름을 국가가…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 20,
+                topic: "의제 20: 정책자문위원의 건의",
+                title: "재건축 투기를 막기 위해 안전진단 시 구조안전성 점수… — 강행이냐 절충이냐",
+                factors: ["안전진단"],
+                desc: "정책자문위원이(가) \"안전진단 기준 중 '구조안전성' 비중을 50% 이상으로 늘려 재건축을 원천…\"라며 강경 추진을 건의했습니다. 현실에서는 노후 주거환경 불만이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "안전진단 기준 중 '구조안전성' 비중을 50% 이상으로 늘려 재건축을 원천 봉쇄하십시오! 노후 주거환경 불만은 무시해도 됩니다. 추진할까요?",
+                hongSpeech: "\"주거 환경 노후도 및 배관 부식 등 주민 불편 요소를…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 아파트가 실제로 붕괴할 때까지는 절대로 안전진단을…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 재건축 투기를 막기 위해 안전진단 시 구조안전성 점수…",
+                        desc: "재건축 투기를 막기 위해 안전진단 시 구조안전성 점수 비중을 대폭 높여 통과를 어렵게 만든다.",
+                        deltas: { approval: -5, stability: -6, trust: -18, publicSatisfaction: -9, regionalSentiment: -6 },
+                        headline: "『재건축 투기를 막기 위해 안전진단 시 구조안전성 점수…』 강행... 노후 주거환경 불만 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 노후 주거환경 불만이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 주거 환경 노후도 및 배관 부식 등 주민 불편 요소를…",
+                        desc: "주거 환경 노후도 및 배관 부식 등 주민 불편 요소를 안전진단 평가에 합리적으로 반영한다.",
+                        deltas: { approval: 9, stability: 17, trust: 17, publicSatisfaction: 9, regionalSentiment: 10 },
+                        headline: "『주거 환경 노후도 및 배관 부식 등 주민 불편 요소를…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 아파트가 실제로 붕괴할 때까지는 절대로 안전진단을…",
+                        desc: "아파트가 실제로 붕괴할 때까지는 절대로 안전진단을 통과시켜 주지 않는 법을 만든다.",
+                        deltas: { approval: -32, stability: -22, trust: -25, publicSatisfaction: -18, regionalSentiment: -15 },
+                        headline: "「아파트가 실제로 붕괴할 때까지는 절대로 안전진단을…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 21,
+                topic: "의제 21: 법무부 장관의 건의",
+                title: "부동산 투기 차단을 위해 서울 및 수도권 전체를… — 강행이냐 절충이냐",
+                factors: ["토지거래허가구역"],
+                desc: "법무부 장관이(가) \"수도권 전체를 토지거래허가구역으로 묶어버리시지요! 재산권 침해라는 위헌 논란이…\"라며 강경 추진을 건의했습니다. 현실에서는 재산권 침해라는 위헌 논란이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "수도권 전체를 토지거래허가구역으로 묶어버리시지요! 재산권 침해라는 위헌 논란이 일겠지만 투기 세력 발을 묶는 데 이만한 게 없습니다. 선포할까요?",
+                hongSpeech: "\"대규모 개발 호재로 투기 과열 우려가 입증된 특정…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 집을 사고팔 때마다 동네 주민 100명의 서명과…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 부동산 투기 차단을 위해 서울 및 수도권 전체를…",
+                        desc: "부동산 투기 차단을 위해 서울 및 수도권 전체를 토지거래허가구역으로 지정한다.",
+                        deltas: { approval: -8, stability: -9, trust: -11, publicSatisfaction: -12, regionalSentiment: -10 },
+                        headline: "『부동산 투기 차단을 위해 서울 및 수도권 전체를…』 강행... 재산권 침해라는 위헌 논란 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 재산권 침해라는 위헌 논란이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 대규모 개발 호재로 투기 과열 우려가 입증된 특정…",
+                        desc: "대규모 개발 호재로 투기 과열 우려가 입증된 특정 구역에만 최소한으로 지정한다.",
+                        deltas: { approval: 8, stability: 12, trust: 18, publicSatisfaction: 12, regionalSentiment: 9 },
+                        headline: "『대규모 개발 호재로 투기 과열 우려가 입증된 특정…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 집을 사고팔 때마다 동네 주민 100명의 서명과…",
+                        desc: "집을 사고팔 때마다 동네 주민 100명의 서명과 도장을 받아오도록 법을 개정한다.",
+                        deltas: { approval: -32, stability: -22, trust: -31, publicSatisfaction: -16, regionalSentiment: -13 },
+                        headline: "「집을 사고팔 때마다 동네 주민 100명의 서명과…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 22,
+                topic: "의제 22: 농림축산식품부 장관의 건의",
+                title: "농지 투기 근절을 위해 외지인의 농지 소유 조건을… — 강행이냐 절충이냐",
+                factors: ["농지 소유"],
+                desc: "농림축산식품부 장관이(가) \"전국 농지를 전수조사해서 주말농장까지 싹 규제하시지요! 농촌 인구 소멸과 거래 절벽…\"라며 강경 추진을 건의했습니다. 현실에서는 농촌 인구 소멸과 거래 절벽 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "전국 농지를 전수조사해서 주말농장까지 싹 규제하시지요! 농촌 인구 소멸과 거래 절벽 비판은 무시하고 바로 조사에 착수할까요?",
+                hongSpeech: "\"실수요 농업인의 농지 취득은 원활히 하되, 투기성…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 농지를 사려면 실제로 벼농사를 지어 쌀 한 가마니를…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 농지 투기 근절을 위해 외지인의 농지 소유 조건을…",
+                        desc: "농지 투기 근절을 위해 외지인의 농지 소유 조건을 대폭 강화하고 주말농장용 취득도 금지한다.",
+                        deltas: { approval: -13, stability: -8, trust: -17, publicSatisfaction: -11, regionalSentiment: -8 },
+                        headline: "『농지 투기 근절을 위해 외지인의 농지 소유 조건을…』 강행... 농촌 인구 소멸과 거래 절벽 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 농촌 인구 소멸과 거래 절벽 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 실수요 농업인의 농지 취득은 원활히 하되, 투기성…",
+                        desc: "실수요 농업인의 농지 취득은 원활히 하되, 투기성 불법 전용 행위만 집중적으로 단속한다.",
+                        deltas: { approval: 14, stability: 9, trust: 13, publicSatisfaction: 14, regionalSentiment: 13 },
+                        headline: "『실수요 농업인의 농지 취득은 원활히 하되, 투기성…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 농지를 사려면 실제로 벼농사를 지어 쌀 한 가마니를…",
+                        desc: "농지를 사려면 실제로 벼농사를 지어 쌀 한 가마니를 청와대에 바쳐 검증받게 한다.",
+                        deltas: { approval: -33, stability: -25, trust: -31, publicSatisfaction: -15, regionalSentiment: -11 },
+                        headline: "「농지를 사려면 실제로 벼농사를 지어 쌀 한 가마니를…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 23,
+                topic: "의제 23: 실무 비서관의 건의",
+                title: "분양권 전매 및 갭투자를 막기 위해 신규 분양 아파트… — 강행이냐 절충이냐",
+                factors: ["분양가상한제"],
+                desc: "실무 비서관이(가) \"분양가상한제 아파트의 실거주 의무를 5년 동안 강제하여 전세 공급을 막아 버리시지요!…\"라며 강경 추진을 건의했습니다. 현실에서는 실수요자 자금 압박 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "분양가상한제 아파트의 실거주 의무를 5년 동안 강제하여 전세 공급을 막아 버리시지요! 실수요자 자금 압박 비판은 무시할까요?",
+                hongSpeech: "\"입주 직후가 아니더라도 매도 전까지만 실거주 기간을…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 실거주 의무를 어기면 해당 아파트의 안방을 국방부…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 분양권 전매 및 갭투자를 막기 위해 신규 분양 아파트…",
+                        desc: "분양권 전매 및 갭투자를 막기 위해 신규 분양 아파트 입주 즉시 5년간 실거주를 강제한다.",
+                        deltas: { approval: -7, stability: -7, trust: -9, publicSatisfaction: -13, regionalSentiment: -9 },
+                        headline: "『분양권 전매 및 갭투자를 막기 위해 신규 분양 아파트…』 강행... 실수요자 자금 압박 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 실수요자 자금 압박 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 입주 직후가 아니더라도 매도 전까지만 실거주 기간을…",
+                        desc: "입주 직후가 아니더라도 매도 전까지만 실거주 기간을 채우면 되도록 유연성을 부여한다.",
+                        deltas: { approval: 8, stability: 14, trust: 14, publicSatisfaction: 6, regionalSentiment: 9 },
+                        headline: "『입주 직후가 아니더라도 매도 전까지만 실거주 기간을…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 실거주 의무를 어기면 해당 아파트의 안방을 국방부…",
+                        desc: "실거주 의무를 어기면 해당 아파트의 안방을 국방부 초소로 접수해 군인을 입주시킨다.",
+                        deltas: { approval: -33, stability: -28, trust: -23, publicSatisfaction: -24, regionalSentiment: -11 },
+                        headline: "「실거주 의무를 어기면 해당 아파트의 안방을 국방부…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 24,
+                topic: "의제 24: 금융위원장의 건의",
+                title: "가계부채 억제를 위해 모든 주택담보대출 LTV 상한을… — 강행이냐 절충이냐",
+                factors: ["LTV", "DSR"],
+                desc: "금융위원장이(가) \"LTV를 20%로 조이고 DSR 규제를 대폭 강화하여 대출을 원천 봉쇄하십시오!…\"라며 강경 추진을 건의했습니다. 현실에서는 '현금 부자만 집 사라는 거냐'는 무주택자 통곡이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "LTV를 20%로 조이고 DSR 규제를 대폭 강화하여 대출을 원천 봉쇄하십시오! '현금 부자만 집 사라는 거냐'는 무주택자 통곡은 무시하시겠습니까?",
+                hongSpeech: "\"차주의 소득 수준과 상환 능력(DSR)에 맞추어…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 은행 대출 대신 국가 지정 퀴즈쇼에 나가 우승해야만…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 가계부채 억제를 위해 모든 주택담보대출 LTV 상한을…",
+                        desc: "가계부채 억제를 위해 모든 주택담보대출 LTV 상한을 20%로 대폭 축소한다.",
+                        deltas: { approval: -10, stability: -9, trust: -8, publicSatisfaction: -7, regionalSentiment: -4 },
+                        headline: "『가계부채 억제를 위해 모든 주택담보대출 LTV 상한을…』 강행... '현금 부자만 집 사라는 거냐'는 무주택자 통곡 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 '현금 부자만 집 사라는 거냐'는 무주택자 통곡이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 차주의 소득 수준과 상환 능력(DSR)에 맞추어…",
+                        desc: "차주의 소득 수준과 상환 능력(DSR)에 맞추어 LTV를 단계별로 차등 적용한다.",
+                        deltas: { approval: 12, stability: 15, trust: 8, publicSatisfaction: 13, regionalSentiment: 9 },
+                        headline: "『차주의 소득 수준과 상환 능력(DSR)에 맞추어…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 은행 대출 대신 국가 지정 퀴즈쇼에 나가 우승해야만…",
+                        desc: "은행 대출 대신 국가 지정 퀴즈쇼에 나가 우승해야만 주택자금을 대출해 준다.",
+                        deltas: { approval: -21, stability: -21, trust: -29, publicSatisfaction: -23, regionalSentiment: -23 },
+                        headline: "「은행 대출 대신 국가 지정 퀴즈쇼에 나가 우승해야만…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 25,
+                topic: "의제 25: 외교안보실장의 건의",
+                title: "외국인의 국내 부동산 투기를 막기 위해 취득세와… — 강행이냐 절충이냐",
+                factors: ["외국인 부동산"],
+                desc: "외교안보실장이(가) \"외국인 부동산 취득 시 취득세율을 50%로 때려버리시지요! 통상 마찰이나 외교적 보복…\"라며 강경 추진을 건의했습니다. 현실에서는 통상 마찰이나 외교적 보복 경고이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "외국인 부동산 취득 시 취득세율을 50%로 때려버리시지요! 통상 마찰이나 외교적 보복 경고는 무시하고 결단하시겠습니까?",
+                hongSpeech: "\"외국인의 자금 출처 조사 및 국내 실거주 여부 검증을…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 외국인이 국내 아파트를 사려면…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 외국인의 국내 부동산 투기를 막기 위해 취득세와…",
+                        desc: "외국인의 국내 부동산 투기를 막기 위해 취득세와 보유세에 징벌적 중과세율(50%)을 적용한다.",
+                        deltas: { approval: -6, stability: -5, trust: -20, publicSatisfaction: -15, regionalSentiment: -8 },
+                        headline: "『외국인의 국내 부동산 투기를 막기 위해 취득세와…』 강행... 통상 마찰이나 외교적 보복 경고 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 통상 마찰이나 외교적 보복 경고이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 외국인의 자금 출처 조사 및 국내 실거주 여부 검증을…",
+                        desc: "외국인의 자금 출처 조사 및 국내 실거주 여부 검증을 철저히 하는 방식으로 투기를 관리한다.",
+                        deltas: { approval: 8, stability: 8, trust: 8, publicSatisfaction: 9, regionalSentiment: 12 },
+                        headline: "『외국인의 자금 출처 조사 및 국내 실거주 여부 검증을…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 외국인이 국내 아파트를 사려면…",
+                        desc: "외국인이 국내 아파트를 사려면 한국어능력시험(TOPIK) 6급과 판소리 한 대목을 완창하게 한다.",
+                        deltas: { approval: -28, stability: -15, trust: -26, publicSatisfaction: -21, regionalSentiment: -18 },
+                        headline: "「외국인이 국내 아파트를 사려면…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 26,
+                topic: "의제 26: 국세청장의 건의",
+                title: "법인을 통한 투기를 막기 위해 법인 소유 주택에 예외… — 강행이냐 절충이냐",
+                factors: ["종부세"],
+                desc: "국세청장이(가) \"법인이 소유한 주택은 취득세 12%, 종부세 6% 최고세율을 일괄 적용하시지요!…\"라며 강경 추진을 건의했습니다. 현실에서는 거센 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "법인이 소유한 주택은 취득세 12%, 종부세 6% 최고세율을 일괄 적용하시지요! 기업의 임직원 관사 확보 어려움 따위는 무시하고 밀어붙일까요?",
+                hongSpeech: "\"투기 목적 법인은 중과하되, 사원용 주택이나 민간…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 법인이 주택을 사면 사장님과 임원들이 매일 아침 그…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 법인을 통한 투기를 막기 위해 법인 소유 주택에 예외…",
+                        desc: "법인을 통한 투기를 막기 위해 법인 소유 주택에 예외 없이 최고 단일세율로 중과세한다.",
+                        deltas: { approval: -14, stability: -5, trust: -13, publicSatisfaction: -5, regionalSentiment: -6 },
+                        headline: "『법인을 통한 투기를 막기 위해 법인 소유 주택에 예외…』 강행... 거센 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 거센 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 투기 목적 법인은 중과하되, 사원용 주택이나 민간…",
+                        desc: "투기 목적 법인은 중과하되, 사원용 주택이나 민간 임대 목적 법인은 선별해 예외를 둔다.",
+                        deltas: { approval: 11, stability: 11, trust: 10, publicSatisfaction: 6, regionalSentiment: 8 },
+                        headline: "『투기 목적 법인은 중과하되, 사원용 주택이나 민간…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 법인이 주택을 사면 사장님과 임원들이 매일 아침 그…",
+                        desc: "법인이 주택을 사면 사장님과 임원들이 매일 아침 그 집 마당에 모여 국민체조를 하도록 한다.",
+                        deltas: { approval: -29, stability: -17, trust: -21, publicSatisfaction: -17, regionalSentiment: -24 },
+                        headline: "「법인이 주택을 사면 사장님과 임원들이 매일 아침 그…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 27,
+                topic: "의제 27: 도시계획수석의 건의",
+                title: "용적률 완화 혜택의 대가로 기부채납 비율을 50%까지… — 강행이냐 절충이냐",
+                factors: ["용적률", "기부채납"],
+                desc: "도시계획수석이(가) \"용적률을 올려주는 대신 사업 부지의 50%를 공공임대 용지로 기부채납하게 하시지요!…\"라며 강경 추진을 건의했습니다. 현실에서는 사업성이 떨어져 재개발이 무산된다는 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "용적률을 올려주는 대신 사업 부지의 50%를 공공임대 용지로 기부채납하게 하시지요! 사업성이 떨어져 재개발이 무산된다는 비판은 무시할까요?",
+                hongSpeech: "\"사업성과 공공성의 균형을 위해 적정 수준의 기부채납…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 용적률을 1000%까지 올려주는 대신 아파트…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 용적률 완화 혜택의 대가로 기부채납 비율을 50%까지…",
+                        desc: "용적률 완화 혜택의 대가로 기부채납 비율을 50%까지 대폭 올려 공공주택 부지를 확보한다.",
+                        deltas: { approval: -10, stability: -5, trust: -16, publicSatisfaction: -12, regionalSentiment: -9 },
+                        headline: "『용적률 완화 혜택의 대가로 기부채납 비율을 50%까지…』 강행... 사업성이 떨어져 재개발이 무산된다는 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 사업성이 떨어져 재개발이 무산된다는 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 사업성과 공공성의 균형을 위해 적정 수준의 기부채납…",
+                        desc: "사업성과 공공성의 균형을 위해 적정 수준의 기부채납 비율을 정하고 공공 인프라로 다변화한다.",
+                        deltas: { approval: 11, stability: 9, trust: 16, publicSatisfaction: 8, regionalSentiment: 11 },
+                        headline: "『사업성과 공공성의 균형을 위해 적정 수준의 기부채납…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 용적률을 1000%까지 올려주는 대신 아파트…",
+                        desc: "용적률을 1000%까지 올려주는 대신 아파트 엘리베이터를 없애고 계단만 이용하게 한다.",
+                        deltas: { approval: -35, stability: -15, trust: -31, publicSatisfaction: -19, regionalSentiment: -22 },
+                        headline: "「용적률을 1000%까지 올려주는 대신 아파트…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 28,
+                topic: "의제 28: 공공개발추진단장의 건의",
+                title: "정비사업의 주도권을 공공이 독점하기 위해 민간… — 강행이냐 절충이냐",
+                factors: ["국정 결단", "참모 회의"],
+                desc: "공공개발추진단장이(가) \"민간 재개발을 싹 막고 LH가 주도하는 공공 재개발만 허용하시지요! LH의 비리…\"라며 강경 추진을 건의했습니다. 현실에서는 LH의 비리 위험이나 주민 반발이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "민간 재개발을 싹 막고 LH가 주도하는 공공 재개발만 허용하시지요! LH의 비리 위험이나 주민 반발은 무시하고 A안으로 강행할까요?",
+                hongSpeech: "\"민간 주도 재개발을 기본으로 하되, 사업이 장기…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 재개발 구역 지정을 원하면 주민 전체가 박석을 깔고…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 정비사업의 주도권을 공공이 독점하기 위해 민간…",
+                        desc: "정비사업의 주도권을 공공이 독점하기 위해 민간 재개발을 제한하고 LH 주도 사업만 추진한다.",
+                        deltas: { approval: -9, stability: -8, trust: -17, publicSatisfaction: -5, regionalSentiment: -10 },
+                        headline: "『정비사업의 주도권을 공공이 독점하기 위해 민간…』 강행... LH의 비리 위험이나 주민 반발 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 LH의 비리 위험이나 주민 반발이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 민간 주도 재개발을 기본으로 하되, 사업이 장기…",
+                        desc: "민간 주도 재개발을 기본으로 하되, 사업이 장기 정체된 구역에 한해 공공이 참여한다.",
+                        deltas: { approval: 10, stability: 9, trust: 8, publicSatisfaction: 13, regionalSentiment: 10 },
+                        headline: "『민간 주도 재개발을 기본으로 하되, 사업이 장기…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 재개발 구역 지정을 원하면 주민 전체가 박석을 깔고…",
+                        desc: "재개발 구역 지정을 원하면 주민 전체가 박석을 깔고 삼보일배로 청와대까지 오게 한다.",
+                        deltas: { approval: -20, stability: -30, trust: -24, publicSatisfaction: -15, regionalSentiment: -24 },
+                        headline: "「재개발 구역 지정을 원하면 주민 전체가 박석을 깔고…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 29,
+                topic: "의제 29: 행정안전부 차관의 건의",
+                title: "시세 조작 방지를 위해 실거래가 신고 기한을 계약 후… — 강행이냐 절충이냐",
+                factors: ["실거래가 신고"],
+                desc: "행정안전부 차관이(가) \"부동산 실거래가 신고 기한을 10일로 줄이고 미신고 시 과태료 3천만 원을…\"라며 강경 추진을 건의했습니다. 현실에서는 행정 폭주이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "부동산 실거래가 신고 기한을 10일로 줄이고 미신고 시 과태료 3천만 원을 때리시지요! 행정 폭주 비판은 무시하고 강화할까요?",
+                hongSpeech: "\"현행 30일 신고 기한을 유지하면서 부동산 거래 분석…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 주택 거래 계약서를 작성하는 순간 3분 이내에 읍면동…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 시세 조작 방지를 위해 실거래가 신고 기한을 계약 후…",
+                        desc: "시세 조작 방지를 위해 실거래가 신고 기한을 계약 후 10일 이내로 단축하고 처벌을 대폭 강화한다.",
+                        deltas: { approval: -13, stability: -5, trust: -14, publicSatisfaction: -9, regionalSentiment: -9 },
+                        headline: "『시세 조작 방지를 위해 실거래가 신고 기한을 계약 후…』 강행... 행정 폭주 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 행정 폭주이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 현행 30일 신고 기한을 유지하면서 부동산 거래 분석…",
+                        desc: "현행 30일 신고 기한을 유지하면서 부동산 거래 분석 시스템의 모니터링 기능을 고도화한다.",
+                        deltas: { approval: 8, stability: 16, trust: 16, publicSatisfaction: 8, regionalSentiment: 6 },
+                        headline: "『현행 30일 신고 기한을 유지하면서 부동산 거래 분석…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 주택 거래 계약서를 작성하는 순간 3분 이내에 읍면동…",
+                        desc: "주택 거래 계약서를 작성하는 순간 3분 이내에 읍면동 사무소로 달려오지 않으면 무효로 한다.",
+                        deltas: { approval: -24, stability: -19, trust: -32, publicSatisfaction: -19, regionalSentiment: -15 },
+                        headline: "「주택 거래 계약서를 작성하는 순간 3분 이내에 읍면동…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 30,
+                topic: "의제 30: LH 사장의 건의",
+                title: "공공임대 아파트 분양 전환 시 분양가를 시세의 반값… — 강행이냐 절충이냐",
+                factors: ["분양 전환"],
+                desc: "LH 사장이(가) \"10년 공공임대 분양 전환가를 시세가 아닌 감정가 이하로 강제해 버리시지요! LH의…\"라며 강경 추진을 건의했습니다. 현실에서는 LH의 수조 원 적자 이월 우려이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "10년 공공임대 분양 전환가를 시세가 아닌 감정가 이하로 강제해 버리시지요! LH의 수조 원 적자 이월 우려는 무시하고 결단하시겠습니까?",
+                hongSpeech: "\"감정평가액을 기준으로 하되 장기 거주 임차인에게 장기…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 분양 전환가를 정하는 대신 집주인과 임차인이 닭싸움을…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 공공임대 아파트 분양 전환 시 분양가를 시세의 반값…",
+                        desc: "공공임대 아파트 분양 전환 시 분양가를 시세의 반값 수준인 건설원가 기반으로 책정한다.",
+                        deltas: { approval: -12, stability: -15, trust: -8, publicSatisfaction: -7, regionalSentiment: -6 },
+                        headline: "『공공임대 아파트 분양 전환 시 분양가를 시세의 반값…』 강행... LH의 수조 원 적자 이월 우려 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 LH의 수조 원 적자 이월 우려이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 감정평가액을 기준으로 하되 장기 거주 임차인에게 장기…",
+                        desc: "감정평가액을 기준으로 하되 장기 거주 임차인에게 장기 저리 대출 및 분할 납부 혜택을 제공한다.",
+                        deltas: { approval: 14, stability: 15, trust: 15, publicSatisfaction: 14, regionalSentiment: 14 },
+                        headline: "『감정평가액을 기준으로 하되 장기 거주 임차인에게 장기…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 분양 전환가를 정하는 대신 집주인과 임차인이 닭싸움을…",
+                        desc: "분양 전환가를 정하는 대신 집주인과 임차인이 닭싸움을 해서 이긴 사람에게 집을 준다.",
+                        deltas: { approval: -24, stability: -29, trust: -23, publicSatisfaction: -26, regionalSentiment: -24 },
+                        headline: "「분양 전환가를 정하는 대신 집주인과 임차인이 닭싸움을…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 31,
+                topic: "의제 31: 보건복지부 장관의 건의",
+                title: "복지 재정 절감을 위해 부동산 공시가격 인상분을… — 강행이냐 절충이냐",
+                factors: ["공시가격", "기초연금"],
+                desc: "보건복지부 장관이(가) \"집값이 올라 공시가격이 오른 노인들은 기초연금 수급 대상에서 싹 탈락시키시지요! '집…\"라며 강경 추진을 건의했습니다. 현실에서는 '집 한 채뿐인 노인들 굶어 죽으란 거냐'는 반발이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "집값이 올라 공시가격이 오른 노인들은 기초연금 수급 대상에서 싹 탈락시키시지요! '집 한 채뿐인 노인들 굶어 죽으란 거냐'는 반발은 무시할까요?",
+                hongSpeech: "\"실거주 1주택 자산에 대해서는 별도의 공제액을 적용해…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 기초연금이 끊긴 노인들에게 주택 대신 국가가 매일…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 복지 재정 절감을 위해 부동산 공시가격 인상분을…",
+                        desc: "복지 재정 절감을 위해 부동산 공시가격 인상분을 그대로 반영해 기초연금 대상자를 대폭 감축한다.",
+                        deltas: { approval: -6, stability: -13, trust: -15, publicSatisfaction: -7, regionalSentiment: -10 },
+                        headline: "『복지 재정 절감을 위해 부동산 공시가격 인상분을…』 강행... '집 한 채뿐인 노인들 굶어 죽으란 거냐'는 반발 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 '집 한 채뿐인 노인들 굶어 죽으란 거냐'는 반발이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 실거주 1주택 자산에 대해서는 별도의 공제액을 적용해…",
+                        desc: "실거주 1주택 자산에 대해서는 별도의 공제액을 적용해 공시가격 상승으로 인한 탈락을 완화한다.",
+                        deltas: { approval: 6, stability: 17, trust: 13, publicSatisfaction: 12, regionalSentiment: 10 },
+                        headline: "『실거주 1주택 자산에 대해서는 별도의 공제액을 적용해…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 기초연금이 끊긴 노인들에게 주택 대신 국가가 매일…",
+                        desc: "기초연금이 끊긴 노인들에게 주택 대신 국가가 매일 무료 급식소 쿠폰을 지급한다.",
+                        deltas: { approval: -29, stability: -23, trust: -24, publicSatisfaction: -25, regionalSentiment: -10 },
+                        headline: "「기초연금이 끊긴 노인들에게 주택 대신 국가가 매일…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 32,
+                topic: "의제 32: 산업통상자원부 장관의 건의",
+                title: "빌딩 및 상가 거래 시 발생하는 시세차익에 과도한… — 강행이냐 절충이냐",
+                factors: ["초과이익 환수금"],
+                desc: "산업통상자원부 장관이(가) \"상업용 빌딩 시세차익의 70%를 초과이익 환수금으로 거두어들이시지요! 상가 건축과…\"라며 강경 추진을 건의했습니다. 현실에서는 상가 건축과 기업 투자가 위축된다는 우려이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "상업용 빌딩 시세차익의 70%를 초과이익 환수금으로 거두어들이시지요! 상가 건축과 기업 투자가 위축된다는 우려는 덮어두시겠습니까?",
+                hongSpeech: "\"상업용 부동산은 시장 자율에 맡기되 임대료 과도 인상…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 상가 건물 시세가 오르면 상승분의 절반을 해당 상가에…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 빌딩 및 상가 거래 시 발생하는 시세차익에 과도한…",
+                        desc: "빌딩 및 상가 거래 시 발생하는 시세차익에 과도한 초과이익 환수금을 부과한다.",
+                        deltas: { approval: -7, stability: -15, trust: -15, publicSatisfaction: -13, regionalSentiment: -10 },
+                        headline: "『빌딩 및 상가 거래 시 발생하는 시세차익에 과도한…』 강행... 상가 건축과 기업 투자가 위축된다는 우려 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 상가 건축과 기업 투자가 위축된다는 우려이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 상업용 부동산은 시장 자율에 맡기되 임대료 과도 인상…",
+                        desc: "상업용 부동산은 시장 자율에 맡기되 임대료 과도 인상 등 불공정 행위만 집중 규제한다.",
+                        deltas: { approval: 9, stability: 12, trust: 10, publicSatisfaction: 10, regionalSentiment: 8 },
+                        headline: "『상업용 부동산은 시장 자율에 맡기되 임대료 과도 인상…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 상가 건물 시세가 오르면 상승분의 절반을 해당 상가에…",
+                        desc: "상가 건물 시세가 오르면 상승분의 절반을 해당 상가에 입점한 가게 손님들에게 뿜뿜 쿠폰으로 나눠준다.",
+                        deltas: { approval: -22, stability: -23, trust: -28, publicSatisfaction: -22, regionalSentiment: -14 },
+                        headline: "「상가 건물 시세가 오르면 상승분의 절반을 해당 상가에…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 33,
+                topic: "의제 33: ICT혁신비서관의 건의",
+                title: "부동산 자산의 지분 분할 거래를 위해 부동산… — 강행이냐 절충이냐",
+                factors: ["부동산 STO"],
+                desc: "ICT혁신비서관이(가) \"부동산 토큰증권(STO)을 전면 허용해 소액 투기를 유도하시지요! 부동산 투판화와…\"라며 강경 추진을 건의했습니다. 현실에서는 부동산 투판화와 자산 거품 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "부동산 토큰증권(STO)을 전면 허용해 소액 투기를 유도하시지요! 부동산 투판화와 자산 거품 비판은 무시하고 허가할까요?",
+                hongSpeech: "\"투자자 보호 장치를 마련한 후 금융규제 샌드박스를…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 부동산 토큰 대신 진짜 벽돌을 하나씩 사서 집에…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 부동산 자산의 지분 분할 거래를 위해 부동산…",
+                        desc: "부동산 자산의 지분 분할 거래를 위해 부동산 STO(토큰증권)를 제한 없이 전면 제도화한다.",
+                        deltas: { approval: -11, stability: -6, trust: -17, publicSatisfaction: -6, regionalSentiment: -6 },
+                        headline: "『부동산 자산의 지분 분할 거래를 위해 부동산…』 강행... 부동산 투판화와 자산 거품 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 부동산 투판화와 자산 거품 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 투자자 보호 장치를 마련한 후 금융규제 샌드박스를…",
+                        desc: "투자자 보호 장치를 마련한 후 금융규제 샌드박스를 통해 단계적으로 시범 도입한다.",
+                        deltas: { approval: 7, stability: 13, trust: 18, publicSatisfaction: 11, regionalSentiment: 7 },
+                        headline: "『투자자 보호 장치를 마련한 후 금융규제 샌드박스를…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 부동산 토큰 대신 진짜 벽돌을 하나씩 사서 집에…",
+                        desc: "부동산 토큰 대신 진짜 벽돌을 하나씩 사서 집에 모으는 '실물 벽돌 모으기 운동'을 추진한다.",
+                        deltas: { approval: -25, stability: -19, trust: -29, publicSatisfaction: -21, regionalSentiment: -20 },
+                        headline: "「부동산 토큰 대신 진짜 벽돌을 하나씩 사서 집에…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 34,
+                topic: "의제 34: 경찰청장의 건의",
+                title: "기획부동산 차단을 위해 임야 및 농지의 5인 이상… — 강행이냐 절충이냐",
+                factors: ["기획부동산"],
+                desc: "경찰청장이(가) \"기획부동산 토지 지분 거래를 원천 금지하고 위반 시 징역 10년으로 때리시지요!…\"라며 강경 추진을 건의했습니다. 현실에서는 사유재산 매매 자유 침해 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "기획부동산 토지 지분 거래를 원천 금지하고 위반 시 징역 10년으로 때리시지요! 사유재산 매매 자유 침해 비판은 무시하고 강행할까요?",
+                hongSpeech: "\"허위·과장 광고 및 사기성 기획부동산 업자에 대한…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 기획부동산에 속아 땅을 산 사람에게 국가가 사기꾼…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 기획부동산 차단을 위해 임야 및 농지의 5인 이상…",
+                        desc: "기획부동산 차단을 위해 임야 및 농지의 5인 이상 지분 분할 거래를 법으로 원천 금지한다.",
+                        deltas: { approval: -6, stability: -6, trust: -15, publicSatisfaction: -9, regionalSentiment: -8 },
+                        headline: "『기획부동산 차단을 위해 임야 및 농지의 5인 이상…』 강행... 사유재산 매매 자유 침해 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 사유재산 매매 자유 침해 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 허위·과장 광고 및 사기성 기획부동산 업자에 대한…",
+                        desc: "허위·과장 광고 및 사기성 기획부동산 업자에 대한 수사와 법적 처벌 기준을 강화한다.",
+                        deltas: { approval: 14, stability: 9, trust: 17, publicSatisfaction: 7, regionalSentiment: 15 },
+                        headline: "『허위·과장 광고 및 사기성 기획부동산 업자에 대한…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 기획부동산에 속아 땅을 산 사람에게 국가가 사기꾼…",
+                        desc: "기획부동산에 속아 땅을 산 사람에게 국가가 사기꾼 대신 땅에 나무를 심어주고 위로해 준다.",
+                        deltas: { approval: -25, stability: -24, trust: -25, publicSatisfaction: -23, regionalSentiment: -10 },
+                        headline: "「기획부동산에 속아 땅을 산 사람에게 국가가 사기꾼…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 35,
+                topic: "의제 35: 공공토지수용단장의 건의",
+                title: "공공 개발 예산 절감을 위해 토지 수용 보상금을… — 강행이냐 절충이냐",
+                factors: ["공시가격", "토지 수용 보상"],
+                desc: "공공토지수용단장이(가) \"공공사업용 토지 수용 보상금을 정부가 정한 공시가격 수준으로 강제 수용하시지요!…\"라며 강경 추진을 건의했습니다. 현실에서는 토지주들의 재산권 침해 반발이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "공공사업용 토지 수용 보상금을 정부가 정한 공시가격 수준으로 강제 수용하시지요! 토지주들의 재산권 침해 반발은 무시할까요?",
+                hongSpeech: "\"정부와 토지주가 추천한 감정평가 법인의 객관적인…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 보상금 대신 수용되는 땅의 흙을 예쁘게 병에 담아…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 공공 개발 예산 절감을 위해 토지 수용 보상금을…",
+                        desc: "공공 개발 예산 절감을 위해 토지 수용 보상금을 시세가 아닌 공시지가 수준으로 강제 책정한다.",
+                        deltas: { approval: -13, stability: -8, trust: -12, publicSatisfaction: -6, regionalSentiment: -7 },
+                        headline: "『공공 개발 예산 절감을 위해 토지 수용 보상금을…』 강행... 토지주들의 재산권 침해 반발 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 토지주들의 재산권 침해 반발이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 정부와 토지주가 추천한 감정평가 법인의 객관적인…",
+                        desc: "정부와 토지주가 추천한 감정평가 법인의 객관적인 평가액 평균으로 정당 보상한다.",
+                        deltas: { approval: 9, stability: 12, trust: 16, publicSatisfaction: 14, regionalSentiment: 7 },
+                        headline: "『정부와 토지주가 추천한 감정평가 법인의 객관적인…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 보상금 대신 수용되는 땅의 흙을 예쁘게 병에 담아…",
+                        desc: "보상금 대신 수용되는 땅의 흙을 예쁘게 병에 담아 기념품으로 증정한다.",
+                        deltas: { approval: -29, stability: -21, trust: -29, publicSatisfaction: -27, regionalSentiment: -15 },
+                        headline: "「보상금 대신 수용되는 땅의 흙을 예쁘게 병에 담아…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 36,
+                topic: "의제 36: 국방혁신비서관의 건의",
+                title: "서울 도심 주택 공급을 위해 노원구 육군사관학교를… — 강행이냐 절충이냐",
+                factors: ["육군사관학교"],
+                desc: "국방혁신비서관이(가) \"서울 육군사관학교 부지를 당장 빼서 아파트를 지으시지요! 군사적 상징성과 안보 우려는…\"라며 강경 추진을 건의했습니다. 현실에서는 군사적 상징성과 안보 우려이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "서울 육군사관학교 부지를 당장 빼서 아파트를 지으시지요! 군사적 상징성과 안보 우려는 무시하고 이전 발표를 할까요?",
+                hongSpeech: "\"육사 본래 기능은 유지하되 연접한 유휴 국공유지…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 육사 생도들을 아파트 건설 현장에 투입해 직접…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 서울 도심 주택 공급을 위해 노원구 육군사관학교를…",
+                        desc: "서울 도심 주택 공급을 위해 노원구 육군사관학교를 지방으로 강제 이전하고 아파트를 건설한다.",
+                        deltas: { approval: -14, stability: -12, trust: -18, publicSatisfaction: -5, regionalSentiment: -4 },
+                        headline: "『서울 도심 주택 공급을 위해 노원구 육군사관학교를…』 강행... 군사적 상징성과 안보 우려 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 군사적 상징성과 안보 우려이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 육사 본래 기능은 유지하되 연접한 유휴 국공유지…",
+                        desc: "육사 본래 기능은 유지하되 연접한 유휴 국공유지 부지만 활용해 주택을 공급한다.",
+                        deltas: { approval: 7, stability: 14, trust: 17, publicSatisfaction: 10, regionalSentiment: 5 },
+                        headline: "『육사 본래 기능은 유지하되 연접한 유휴 국공유지…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 육사 생도들을 아파트 건설 현장에 투입해 직접…",
+                        desc: "육사 생도들을 아파트 건설 현장에 투입해 직접 아파트를 짓는 '안보 주택 건설'을 추진한다.",
+                        deltas: { approval: -34, stability: -17, trust: -21, publicSatisfaction: -28, regionalSentiment: -21 },
+                        headline: "「육사 생도들을 아파트 건설 현장에 투입해 직접…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 37,
+                topic: "의제 37: 수도권발전특위 위원장의 건의",
+                title: "서부권 대규모 공급을 위해 김포공항을 폐쇄·이전하고… — 강행이냐 절충이냐",
+                factors: ["김포공항"],
+                desc: "수도권발전특위 위원장이(가) \"김포공항을 폐항하고 거기에 10만 가구 신도시를 지으시지요! 수도권 서부 항공 교통…\"라며 강경 추진을 건의했습니다. 현실에서는 수도권 서부 항공 교통 마비 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "김포공항을 폐항하고 거기에 10만 가구 신도시를 지으시지요! 수도권 서부 항공 교통 마비 비판은 무시하고 밀어붙일까요?",
+                hongSpeech: "\"김포공항의 관문 기능을 유지하면서 공항 주변 미개발…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 김포공항 활주로 위에 허공에 떠 있는 '공중 도킹…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 서부권 대규모 공급을 위해 김포공항을 폐쇄·이전하고…",
+                        desc: "서부권 대규모 공급을 위해 김포공항을 폐쇄·이전하고 해당 부지에 신도시를 조성한다.",
+                        deltas: { approval: -12, stability: -15, trust: -10, publicSatisfaction: -9, regionalSentiment: -10 },
+                        headline: "『서부권 대규모 공급을 위해 김포공항을 폐쇄·이전하고…』 강행... 수도권 서부 항공 교통 마비 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 수도권 서부 항공 교통 마비 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 김포공항의 관문 기능을 유지하면서 공항 주변 미개발…",
+                        desc: "김포공항의 관문 기능을 유지하면서 공항 주변 미개발 배후지 위주로 컴팩트 시티를 개발한다.",
+                        deltas: { approval: 7, stability: 14, trust: 9, publicSatisfaction: 13, regionalSentiment: 8 },
+                        headline: "『김포공항의 관문 기능을 유지하면서 공항 주변 미개발…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 김포공항 활주로 위에 허공에 떠 있는 '공중 도킹…",
+                        desc: "김포공항 활주로 위에 허공에 떠 있는 '공중 도킹 아파트'를 건설한다.",
+                        deltas: { approval: -22, stability: -19, trust: -20, publicSatisfaction: -23, regionalSentiment: -15 },
+                        headline: "「김포공항 활주로 위에 허공에 떠 있는 '공중 도킹…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 38,
+                topic: "의제 38: 체육관광비서관의 건의",
+                title: "주택 공급 공간 확보를 위해 수도권 내 공공·민간… — 강행이냐 절충이냐",
+                factors: ["골프장"],
+                desc: "체육관광비서관이(가) \"수도권 골프장을 싹 몰수해서 주택 단지로 개발하시지요! 골프 대중화 역행이나 사유재산…\"라며 강경 추진을 건의했습니다. 현실에서는 골프 대중화 역행이나 사유재산 몰수 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "수도권 골프장을 싹 몰수해서 주택 단지로 개발하시지요! 골프 대중화 역행이나 사유재산 몰수 비판은 무시하고 지시하시겠습니까?",
+                hongSpeech: "\"공공기관 소유의 일부 유휴 골프장 부지에 한해 주택…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 골프장 홀마다 텐트를 치고 국민들이 순번제로 야영하며…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 주택 공급 공간 확보를 위해 수도권 내 공공·민간…",
+                        desc: "주택 공급 공간 확보를 위해 수도권 내 공공·민간 골프장 부지를 강제 수용해 아파트를 짓는다.",
+                        deltas: { approval: -7, stability: -10, trust: -20, publicSatisfaction: -15, regionalSentiment: -5 },
+                        headline: "『주택 공급 공간 확보를 위해 수도권 내 공공·민간…』 강행... 골프 대중화 역행이나 사유재산 몰수 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 골프 대중화 역행이나 사유재산 몰수 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 공공기관 소유의 일부 유휴 골프장 부지에 한해 주택…",
+                        desc: "공공기관 소유의 일부 유휴 골프장 부지에 한해 주택 용지 전환을 추진한다.",
+                        deltas: { approval: 14, stability: 8, trust: 14, publicSatisfaction: 11, regionalSentiment: 12 },
+                        headline: "『공공기관 소유의 일부 유휴 골프장 부지에 한해 주택…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 골프장 홀마다 텐트를 치고 국민들이 순번제로 야영하며…",
+                        desc: "골프장 홀마다 텐트를 치고 국민들이 순번제로 야영하며 살도록 개방한다.",
+                        deltas: { approval: -26, stability: -15, trust: -30, publicSatisfaction: -16, regionalSentiment: -19 },
+                        headline: "「골프장 홀마다 텐트를 치고 국민들이 순번제로 야영하며…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 39,
+                topic: "의제 39: 지방시대위원장의 건의",
+                title: "지방 균형발전을 명목으로 수도권에서 걷힌 부동산 세수… — 강행이냐 절충이냐",
+                factors: ["지방교부세"],
+                desc: "지방시대위원장이(가) \"서울과 경기 부동산 세수의 80%를 걷어 지방으로 강제 배분하시지요! 수도권 지자체…\"라며 강경 추진을 건의했습니다. 현실에서는 수도권 지자체 재정 자율성 침해 반발이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "서울과 경기 부동산 세수의 80%를 걷어 지방으로 강제 배분하시지요! 수도권 지자체 재정 자율성 침해 반발은 무시할까요?",
+                hongSpeech: "\"현행 지방교부세 제도를 활용해 세수 격차를 완화하고…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 서울 사람이 집을 사면 지방에 있는 집도 무조건 한…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 지방 균형발전을 명목으로 수도권에서 걷힌 부동산 세수…",
+                        desc: "지방 균형발전을 명목으로 수도권에서 걷힌 부동산 세수 대부분을 지방으로 강제 재분배한다.",
+                        deltas: { approval: -13, stability: -15, trust: -18, publicSatisfaction: -7, regionalSentiment: -9 },
+                        headline: "『지방 균형발전을 명목으로 수도권에서 걷힌 부동산 세수…』 강행... 수도권 지자체 재정 자율성 침해 반발 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 수도권 지자체 재정 자율성 침해 반발이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 현행 지방교부세 제도를 활용해 세수 격차를 완화하고…",
+                        desc: "현행 지방교부세 제도를 활용해 세수 격차를 완화하고 지방의 자립 기반을 지원한다.",
+                        deltas: { approval: 7, stability: 18, trust: 15, publicSatisfaction: 8, regionalSentiment: 5 },
+                        headline: "『현행 지방교부세 제도를 활용해 세수 격차를 완화하고…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 서울 사람이 집을 사면 지방에 있는 집도 무조건 한…",
+                        desc: "서울 사람이 집을 사면 지방에 있는 집도 무조건 한 채 세트로 같이 사게 법을 만든다.",
+                        deltas: { approval: -22, stability: -17, trust: -29, publicSatisfaction: -18, regionalSentiment: -16 },
+                        headline: "「서울 사람이 집을 사면 지방에 있는 집도 무조건 한…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 40,
+                topic: "의제 40: 금융감독원장의 건의",
+                title: "갭투자 차단을 위해 HUG 전세보증금 반환보증 가입… — 강행이냐 절충이냐",
+                factors: ["전세보증금"],
+                desc: "금융감독원장이(가) \"전세보증금 반환보증 가입 기준을 공시가의 100%로 죄어 버리시지요! 빌라 세입자들이…\"라며 강경 추진을 건의했습니다. 현실에서는 거센 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "전세보증금 반환보증 가입 기준을 공시가의 100%로 죄어 버리시지요! 빌라 세입자들이 보증에 가입 못 해 길거리에 쫓겨나는 부작용은 무시할까요?",
+                hongSpeech: "\"보증 가입 기준을 단계적으로 조정하고, 임차인 보호를…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 전세보증금을 내는 대신 집주인에게 집값에 해당하는…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 갭투자 차단을 위해 HUG 전세보증금 반환보증 가입…",
+                        desc: "갭투자 차단을 위해 HUG 전세보증금 반환보증 가입 한도를 시세보다 현저히 낮게 대폭 축소한다.",
+                        deltas: { approval: -11, stability: -13, trust: -18, publicSatisfaction: -6, regionalSentiment: -9 },
+                        headline: "『갭투자 차단을 위해 HUG 전세보증금 반환보증 가입…』 강행... 거센 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 거센 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 보증 가입 기준을 단계적으로 조정하고, 임차인 보호를…",
+                        desc: "보증 가입 기준을 단계적으로 조정하고, 임차인 보호를 위한 연착륙 방안을 병행한다.",
+                        deltas: { approval: 7, stability: 11, trust: 10, publicSatisfaction: 12, regionalSentiment: 13 },
+                        headline: "『보증 가입 기준을 단계적으로 조정하고, 임차인 보호를…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 전세보증금을 내는 대신 집주인에게 집값에 해당하는…",
+                        desc: "전세보증금을 내는 대신 집주인에게 집값에 해당하는 분량의 금괴를 맡기도록 한다.",
+                        deltas: { approval: -26, stability: -21, trust: -31, publicSatisfaction: -23, regionalSentiment: -17 },
+                        headline: "「전세보증금을 내는 대신 집주인에게 집값에 해당하는…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 41,
+                topic: "의제 41: 세제실장의 건의",
+                title: "다세대 주택 투기 차단을 위해 빌라·다세대 주택 취득… — 강행이냐 절충이냐",
+                factors: ["국정 결단", "참모 회의"],
+                desc: "세제실장이(가) \"빌라와 다세대 주택 취득세 감면을 전면 폐지하시지요! 서민들의 소형 주택 매매가 완전…\"라며 강경 추진을 건의했습니다. 현실에서는 서민들의 소형 주택 매매가 완전 도륙 난다는 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "빌라와 다세대 주택 취득세 감면을 전면 폐지하시지요! 서민들의 소형 주택 매매가 완전 도륙 난다는 비판은 무시하고 추진할까요?",
+                hongSpeech: "\"서민 주거 안정을 위해 일정 규모 이하의 소형 다세대…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 빌라를 사면 취득세를 내는 대신 정부에 빌라 이름으로…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 다세대 주택 투기 차단을 위해 빌라·다세대 주택 취득…",
+                        desc: "다세대 주택 투기 차단을 위해 빌라·다세대 주택 취득 시 부여하던 세제 감면 혜택을 전면 폐지한다.",
+                        deltas: { approval: -14, stability: -5, trust: -13, publicSatisfaction: -15, regionalSentiment: -5 },
+                        headline: "『다세대 주택 투기 차단을 위해 빌라·다세대 주택 취득…』 강행... 서민들의 소형 주택 매매가 완전 도륙 난다는 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 서민들의 소형 주택 매매가 완전 도륙 난다는 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 서민 주거 안정을 위해 일정 규모 이하의 소형 다세대…",
+                        desc: "서민 주거 안정을 위해 일정 규모 이하의 소형 다세대 주택에 대해서는 취득세 감면을 유지한다.",
+                        deltas: { approval: 11, stability: 15, trust: 18, publicSatisfaction: 8, regionalSentiment: 15 },
+                        headline: "『서민 주거 안정을 위해 일정 규모 이하의 소형 다세대…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 빌라를 사면 취득세를 내는 대신 정부에 빌라 이름으로…",
+                        desc: "빌라를 사면 취득세를 내는 대신 정부에 빌라 이름으로 된 삼행시를 제출하게 한다.",
+                        deltas: { approval: -26, stability: -17, trust: -21, publicSatisfaction: -27, regionalSentiment: -10 },
+                        headline: "「빌라를 사면 취득세를 내는 대신 정부에 빌라 이름으로…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 42,
+                topic: "의제 42: 사회수석의 건의",
+                title: "부의 양극화를 막기 위해 시세 30억 이상 초고가… — 강행이냐 절충이냐",
+                factors: ["보유세율"],
+                desc: "사회수석이(가) \"초고가 대형 아파트 보유세율을 10%로 때려버리시지요! 징벌적 과세라는 자산가들의…\"라며 강경 추진을 건의했습니다. 현실에서는 징벌적 과세라는 자산가들의 조세 저항이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "초고가 대형 아파트 보유세율을 10%로 때려버리시지요! 징벌적 과세라는 자산가들의 조세 저항은 무시하고 지시하시겠습니까?",
+                hongSpeech: "\"고가 주택에 대한 적정 과세를 유지하되 소득이 없는…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 초고가 아파트 주민들은 매년 아파트 단지 앞마당에서…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 부의 양극화를 막기 위해 시세 30억 이상 초고가…",
+                        desc: "부의 양극화를 막기 위해 시세 30억 이상 초고가 주택의 보유세율을 징벌적 수준으로 상향한다.",
+                        deltas: { approval: -15, stability: -14, trust: -20, publicSatisfaction: -15, regionalSentiment: -4 },
+                        headline: "『부의 양극화를 막기 위해 시세 30억 이상 초고가…』 강행... 징벌적 과세라는 자산가들의 조세 저항 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 징벌적 과세라는 자산가들의 조세 저항이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 고가 주택에 대한 적정 과세를 유지하되 소득이 없는…",
+                        desc: "고가 주택에 대한 적정 과세를 유지하되 소득이 없는 고령 장기보유자에게는 납부 유예를 허용한다.",
+                        deltas: { approval: 7, stability: 9, trust: 9, publicSatisfaction: 10, regionalSentiment: 10 },
+                        headline: "『고가 주택에 대한 적정 과세를 유지하되 소득이 없는…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 초고가 아파트 주민들은 매년 아파트 단지 앞마당에서…",
+                        desc: "초고가 아파트 주민들은 매년 아파트 단지 앞마당에서 국민들에게 사과문을 발표하게 한다.",
+                        deltas: { approval: -29, stability: -28, trust: -21, publicSatisfaction: -27, regionalSentiment: -25 },
+                        headline: "「초고가 아파트 주민들은 매년 아파트 단지 앞마당에서…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 43,
+                topic: "의제 43: 지방발전기획단장의 건의",
+                title: "지방 건설사 부도를 막기 위해 미분양 아파트를 국고로… — 강행이냐 절충이냐",
+                factors: ["미분양 아파트"],
+                desc: "지방발전기획단장이(가) \"지방의 미분양 아파트 5만 가구를 국가 재정으로 시세대로 싹 사들이지요! 건설사…\"라며 강경 추진을 건의했습니다. 현실에서는 건설사 도덕적 해이와 재정 낭비 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "지방의 미분양 아파트 5만 가구를 국가 재정으로 시세대로 싹 사들이지요! 건설사 도덕적 해이와 재정 낭비 비판은 무시할까요?",
+                hongSpeech: "\"건설사의 자구책(분양가 할인 등)을 전제로, 일부…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 지방 미분양 아파트를 국가가 사서 전국 취준생들의…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 지방 건설사 부도를 막기 위해 미분양 아파트를 국고로…",
+                        desc: "지방 건설사 부도를 막기 위해 미분양 아파트를 국고로 시세대로 매입해 준다.",
+                        deltas: { approval: -6, stability: -10, trust: -10, publicSatisfaction: -12, regionalSentiment: -10 },
+                        headline: "『지방 건설사 부도를 막기 위해 미분양 아파트를 국고로…』 강행... 건설사 도덕적 해이와 재정 낭비 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 건설사 도덕적 해이와 재정 낭비 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 건설사의 자구책(분양가 할인 등)을 전제로, 일부…",
+                        desc: "건설사의 자구책(분양가 할인 등)을 전제로, 일부 알짜 매물만 임대주택용으로 선별 매입한다.",
+                        deltas: { approval: 13, stability: 14, trust: 12, publicSatisfaction: 14, regionalSentiment: 7 },
+                        headline: "『건설사의 자구책(분양가 할인 등)을 전제로, 일부…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 지방 미분양 아파트를 국가가 사서 전국 취준생들의…",
+                        desc: "지방 미분양 아파트를 국가가 사서 전국 취준생들의 합동 스터디카페로 개조한다.",
+                        deltas: { approval: -33, stability: -22, trust: -35, publicSatisfaction: -19, regionalSentiment: -15 },
+                        headline: "「지방 미분양 아파트를 국가가 사서 전국 취준생들의…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 44,
+                topic: "의제 44: 청년정책조정위원회의 건의",
+                title: "청년표 심리를 잡기 위해 도심 매입임대주택을 대량… — 강행이냐 절충이냐",
+                factors: ["매입임대주택"],
+                desc: "청년정책조정위원회이(가) \"서울 도심 요지의 빌라 1만 채를 사들여 청년들에게 공짜로 임대해 주시지요! 막대한…\"라며 강경 추진을 건의했습니다. 현실에서는 막대한 국가 재정 소모 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "서울 도심 요지의 빌라 1만 채를 사들여 청년들에게 공짜로 임대해 주시지요! 막대한 국가 재정 소모 비판은 무시하시겠습니까?",
+                hongSpeech: "\"청년층 주거 안정을 위해 역세권 중심의 소형…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 청년들에게 집을 주는 대신 도심 한복판에 대형 대나무…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 청년표 심리를 잡기 위해 도심 매입임대주택을 대량…",
+                        desc: "청년표 심리를 잡기 위해 도심 매입임대주택을 대량 구매하여 청년층에게 무상 수준으로 제공한다.",
+                        deltas: { approval: -8, stability: -10, trust: -20, publicSatisfaction: -6, regionalSentiment: -8 },
+                        headline: "『청년표 심리를 잡기 위해 도심 매입임대주택을 대량…』 강행... 막대한 국가 재정 소모 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 막대한 국가 재정 소모 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 청년층 주거 안정을 위해 역세권 중심의 소형…",
+                        desc: "청년층 주거 안정을 위해 역세권 중심의 소형 임대주택을 적정 임대료로 단계적 공급한다.",
+                        deltas: { approval: 14, stability: 12, trust: 18, publicSatisfaction: 6, regionalSentiment: 11 },
+                        headline: "『청년층 주거 안정을 위해 역세권 중심의 소형…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 청년들에게 집을 주는 대신 도심 한복판에 대형 대나무…",
+                        desc: "청년들에게 집을 주는 대신 도심 한복판에 대형 대나무 숲을 조성해 원두막을 지어준다.",
+                        deltas: { approval: -31, stability: -22, trust: -26, publicSatisfaction: -23, regionalSentiment: -13 },
+                        headline: "「청년들에게 집을 주는 대신 도심 한복판에 대형 대나무…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 45,
+                topic: "의제 45: 국세청 차관의 건의",
+                title: "과세 형평성을 이유로 소형 주택 임대소득에 대한 소액… — 강행이냐 절충이냐",
+                factors: ["임대소득 비과세"],
+                desc: "국세청 차관이(가) \"소형 주택 임대소득 비과세 기준을 없애고 1원이라도 벌면 세금을 싹 거두어들이시지요!…\"라며 강경 추진을 건의했습니다. 현실에서는 소형 임대시장 폐업 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "소형 주택 임대소득 비과세 기준을 없애고 1원이라도 벌면 세금을 싹 거두어들이시지요! 소형 임대시장 폐업 비판은 무시할까요?",
+                hongSpeech: "\"민간 소형 임대 공급을 유지하기 위해 일정 금액…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 임대 소득세를 내는 집주인에게 '이달의 친절한…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 과세 형평성을 이유로 소형 주택 임대소득에 대한 소액…",
+                        desc: "과세 형평성을 이유로 소형 주택 임대소득에 대한 소액 비과세 혜택을 전면 폐지한다.",
+                        deltas: { approval: -13, stability: -7, trust: -8, publicSatisfaction: -14, regionalSentiment: -9 },
+                        headline: "『과세 형평성을 이유로 소형 주택 임대소득에 대한 소액…』 강행... 소형 임대시장 폐업 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 소형 임대시장 폐업 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 민간 소형 임대 공급을 유지하기 위해 일정 금액…",
+                        desc: "민간 소형 임대 공급을 유지하기 위해 일정 금액 이하의 소액 임대소득에 대한 분리과세를 유지한다.",
+                        deltas: { approval: 8, stability: 14, trust: 13, publicSatisfaction: 10, regionalSentiment: 5 },
+                        headline: "『민간 소형 임대 공급을 유지하기 위해 일정 금액…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 임대 소득세를 내는 집주인에게 '이달의 친절한…",
+                        desc: "임대 소득세를 내는 집주인에게 '이달의 친절한 임대인' 상장과 수건 세트를 증정한다.",
+                        deltas: { approval: -32, stability: -16, trust: -32, publicSatisfaction: -18, regionalSentiment: -15 },
+                        headline: "「임대 소득세를 내는 집주인에게 '이달의 친절한…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 46,
+                topic: "의제 46: 기획재정부 세제조정관의 건의",
+                title: "세수 보전을 위해 부동산 하락기에도 과세 표준 산정… — 강행이냐 절충이냐",
+                factors: ["공정시장가액비율"],
+                desc: "기획재정부 세제조정관이(가) \"집값이 반토막 나도 세금 부과 기준인 공정시장가액비율을 100%로 고수하십시오!…\"라며 강경 추진을 건의했습니다. 현실에서는 '집값 떨어졌는데 세금은 그대로냐'는 반발이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "집값이 반토막 나도 세금 부과 기준인 공정시장가액비율을 100%로 고수하십시오! '집값 떨어졌는데 세금은 그대로냐'는 반발은 덮어둘까요?",
+                hongSpeech: "\"부동산 시세 하락과 국민 세 부담을 고려해…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 집값이 떨어지면 떨어진 금액만큼 국가에서 세금 대신…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 세수 보전을 위해 부동산 하락기에도 과세 표준 산정…",
+                        desc: "세수 보전을 위해 부동산 하락기에도 과세 표준 산정 비율(공정시장가액비율)을 최고치로 유지한다.",
+                        deltas: { approval: -15, stability: -15, trust: -14, publicSatisfaction: -8, regionalSentiment: -4 },
+                        headline: "『세수 보전을 위해 부동산 하락기에도 과세 표준 산정…』 강행... '집값 떨어졌는데 세금은 그대로냐'는 반발 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 '집값 떨어졌는데 세금은 그대로냐'는 반발이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 부동산 시세 하락과 국민 세 부담을 고려해…",
+                        desc: "부동산 시세 하락과 국민 세 부담을 고려해 공정시장가액비율을 하향 조정한다.",
+                        deltas: { approval: 13, stability: 13, trust: 16, publicSatisfaction: 11, regionalSentiment: 8 },
+                        headline: "『부동산 시세 하락과 국민 세 부담을 고려해…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 집값이 떨어지면 떨어진 금액만큼 국가에서 세금 대신…",
+                        desc: "집값이 떨어지면 떨어진 금액만큼 국가에서 세금 대신 감자나 고구마로 물물교환해 준다.",
+                        deltas: { approval: -25, stability: -27, trust: -34, publicSatisfaction: -23, regionalSentiment: -21 },
+                        headline: "「집값이 떨어지면 떨어진 금액만큼 국가에서 세금 대신…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 47,
+                topic: "의제 47: 국토도시실장의 건의",
+                title: "기존에 진행되던 도시재생 뉴딜 사업을 전면 재검토하고… — 강행이냐 절충이냐",
+                factors: ["도시재생"],
+                desc: "국토도시실장이(가) \"보존 위주의 도시재생 사업을 싹 취소하고 예산을 회수하시지요! 주민들의 원성과 사업…\"라며 강경 추진을 건의했습니다. 현실에서는 주민들의 원성과 사업 혼선이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "보존 위주의 도시재생 사업을 싹 취소하고 예산을 회수하시지요! 주민들의 원성과 사업 혼선 비판은 무시하고 강행할까요?",
+                hongSpeech: "\"사업성이 떨어지는 구역은 재정비하되, 진행 중인 주민…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 벽화 그리기 도시재생 대신 동네 전체를 유명 웹툰…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 기존에 진행되던 도시재생 뉴딜 사업을 전면 재검토하고…",
+                        desc: "기존에 진행되던 도시재생 뉴딜 사업을 전면 재검토하고 지원 예산을 전격 감축·회수한다.",
+                        deltas: { approval: -5, stability: -8, trust: -11, publicSatisfaction: -7, regionalSentiment: -3 },
+                        headline: "『기존에 진행되던 도시재생 뉴딜 사업을 전면 재검토하고…』 강행... 주민들의 원성과 사업 혼선 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 주민들의 원성과 사업 혼선이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 사업성이 떨어지는 구역은 재정비하되, 진행 중인 주민…",
+                        desc: "사업성이 떨어지는 구역은 재정비하되, 진행 중인 주민 생활 인프라 사업은 차질 없이 마무리한다.",
+                        deltas: { approval: 12, stability: 15, trust: 17, publicSatisfaction: 6, regionalSentiment: 5 },
+                        headline: "『사업성이 떨어지는 구역은 재정비하되, 진행 중인 주민…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 벽화 그리기 도시재생 대신 동네 전체를 유명 웹툰…",
+                        desc: "벽화 그리기 도시재생 대신 동네 전체를 유명 웹툰 그림으로 도배하는 사업을 추진한다.",
+                        deltas: { approval: -32, stability: -20, trust: -34, publicSatisfaction: -23, regionalSentiment: -20 },
+                        headline: "「벽화 그리기 도시재생 대신 동네 전체를 유명 웹툰…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 48,
+                topic: "의제 48: 공공주택추진단장의 건의",
+                title: "청년·무주택자 표심을 얻기 위해 사업 초기 단계에서… — 강행이냐 절충이냐",
+                factors: ["3기 신도시 사전청약"],
+                desc: "공공주택추진단장이(가) \"3기 신도시 사전청약을 토지 보상도 안 끝난 상태에서 대대적으로 추가 발표하시지요!…\"라며 강경 추진을 건의했습니다. 현실에서는 본청약 지연으로 인한 희망고문 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "3기 신도시 사전청약을 토지 보상도 안 끝난 상태에서 대대적으로 추가 발표하시지요! 본청약 지연으로 인한 희망고문 비판은 무시할까요?",
+                hongSpeech: "\"본청약 지연 피해를 막기 위해 토지 보상이 완료되고…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 사전청약 당첨자들에게 아파트 대신 텐트와 침낭을 먼저…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 청년·무주택자 표심을 얻기 위해 사업 초기 단계에서…",
+                        desc: "청년·무주택자 표심을 얻기 위해 사업 초기 단계에서 3기 신도시 사전청약을 대규모로 추가 시행한다.",
+                        deltas: { approval: -7, stability: -10, trust: -17, publicSatisfaction: -6, regionalSentiment: -4 },
+                        headline: "『청년·무주택자 표심을 얻기 위해 사업 초기 단계에서…』 강행... 본청약 지연으로 인한 희망고문 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 본청약 지연으로 인한 희망고문 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 본청약 지연 피해를 막기 위해 토지 보상이 완료되고…",
+                        desc: "본청약 지연 피해를 막기 위해 토지 보상이 완료되고 사업 일정이 확정된 지구만 사전청약을 진행한다.",
+                        deltas: { approval: 15, stability: 8, trust: 8, publicSatisfaction: 14, regionalSentiment: 13 },
+                        headline: "『본청약 지연 피해를 막기 위해 토지 보상이 완료되고…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 사전청약 당첨자들에게 아파트 대신 텐트와 침낭을 먼저…",
+                        desc: "사전청약 당첨자들에게 아파트 대신 텐트와 침낭을 먼저 지급하고 입주 때까지 야영하게 한다.",
+                        deltas: { approval: -28, stability: -22, trust: -33, publicSatisfaction: -16, regionalSentiment: -10 },
+                        headline: "「사전청약 당첨자들에게 아파트 대신 텐트와 침낭을 먼저…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 49,
+                topic: "의제 49: 민생법안추진단의 건의",
+                title: "세입자 보호를 명목으로 민간 임대사업자의 임대료 증액… — 강행이냐 절충이냐",
+                factors: ["국정 결단", "참모 회의"],
+                desc: "민생법안추진단이(가) \"민간 임대사업자가 임대료를 1%만 올려도 과태료 5천만 원을 때리는 법안을…\"라며 강경 추진을 건의했습니다. 현실에서는 민간 임대 시장 파탄 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "민간 임대사업자가 임대료를 1%만 올려도 과태료 5천만 원을 때리는 법안을 강행하시지요! 민간 임대 시장 파탄 비판은 무시하겠습니까?",
+                hongSpeech: "\"물가상승률과 금리를 고려하여 임대료 증액 상한선을…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 임대료를 올리고 싶은 집주인은 세입자와 1:1…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 세입자 보호를 명목으로 민간 임대사업자의 임대료 증액…",
+                        desc: "세입자 보호를 명목으로 민간 임대사업자의 임대료 증액 상한을 대폭 축소하고 위반 시 처벌을 최고 수준으로 높인다.",
+                        deltas: { approval: -15, stability: -11, trust: -13, publicSatisfaction: -15, regionalSentiment: -5 },
+                        headline: "『세입자 보호를 명목으로 민간 임대사업자의 임대료 증액…』 강행... 민간 임대 시장 파탄 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 민간 임대 시장 파탄 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 물가상승률과 금리를 고려하여 임대료 증액 상한선을…",
+                        desc: "물가상승률과 금리를 고려하여 임대료 증액 상한선을 현실에 맞게 합리적으로 조정한다.",
+                        deltas: { approval: 10, stability: 9, trust: 18, publicSatisfaction: 9, regionalSentiment: 10 },
+                        headline: "『물가상승률과 금리를 고려하여 임대료 증액 상한선을…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 임대료를 올리고 싶은 집주인은 세입자와 1:1…",
+                        desc: "임대료를 올리고 싶은 집주인은 세입자와 1:1 스타크래프트 경기를 해서 이겨야만 올릴 수 있게 한다.",
+                        deltas: { approval: -30, stability: -23, trust: -33, publicSatisfaction: -22, regionalSentiment: -10 },
+                        headline: "「임대료를 올리고 싶은 집주인은 세입자와 1:1…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 50,
+                topic: "의제 50: 소비자보호원장의 건의",
+                title: "국민의 거래 비용 절감을 위해 법정 부동산 중개수수료… — 강행이냐 절충이냐",
+                factors: ["중개수수료"],
+                desc: "소비자보호원장이(가) \"부동산 중개수수료를 절반으로 강제 인하해 버리시지요! 공인중개사 업계의 집단 폐업과…\"라며 강경 추진을 건의했습니다. 현실에서는 공인중개사 업계의 집단 폐업과 반발이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "부동산 중개수수료를 절반으로 강제 인하해 버리시지요! 공인중개사 업계의 집단 폐업과 반발은 무시하고 지시할까요?",
+                hongSpeech: "\"고가 거래 구간의 중개 수수료 요율을 합리적으로…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 부동산 중개 수수료를 현금 대신 쌀, 배추, 과일 등…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 국민의 거래 비용 절감을 위해 법정 부동산 중개수수료…",
+                        desc: "국민의 거래 비용 절감을 위해 법정 부동산 중개수수료 요율 상한을 일률적으로 50% 강제 인하한다.",
+                        deltas: { approval: -10, stability: -10, trust: -11, publicSatisfaction: -11, regionalSentiment: -3 },
+                        headline: "『국민의 거래 비용 절감을 위해 법정 부동산 중개수수료…』 강행... 공인중개사 업계의 집단 폐업과 반발 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 공인중개사 업계의 집단 폐업과 반발이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 고가 거래 구간의 중개 수수료 요율을 합리적으로…",
+                        desc: "고가 거래 구간의 중개 수수료 요율을 합리적으로 조정하고 거래 금액별 구간을 세분화한다.",
+                        deltas: { approval: 15, stability: 16, trust: 13, publicSatisfaction: 7, regionalSentiment: 5 },
+                        headline: "『고가 거래 구간의 중개 수수료 요율을 합리적으로…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 부동산 중개 수수료를 현금 대신 쌀, 배추, 과일 등…",
+                        desc: "부동산 중개 수수료를 현금 대신 쌀, 배추, 과일 등 시골 특산품으로만 결제하게 한다.",
+                        deltas: { approval: -24, stability: -19, trust: -25, publicSatisfaction: -20, regionalSentiment: -16 },
+                        headline: "「부동산 중개 수수료를 현금 대신 쌀, 배추, 과일 등…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 51,
+                topic: "의제 51: 건축정책비서관의 건의",
+                title: "편법 주거 차단을 위해 생활형숙박시설의 주거 사용에… — 강행이냐 절충이냐",
+                factors: ["생활형숙박시설"],
+                desc: "건축정책비서관이(가) \"생활형숙박시설을 주거용으로 쓰면 무조건 매년 가액의 10%를 이행강제금으로…\"라며 강경 추진을 건의했습니다. 현실에서는 수십만 수분양자의 사회적 대란 경고이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "생활형숙박시설을 주거용으로 쓰면 무조건 매년 가액의 10%를 이행강제금으로 때리시지요! 수십만 수분양자의 사회적 대란 경고는 무시할까요?",
+                hongSpeech: "\"수분양자의 피해를 막기 위해 오피스텔 용도변경 기준을…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 생활형숙박시설에 사는 사람들은 집에서 매일 호텔…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 편법 주거 차단을 위해 생활형숙박시설의 주거 사용에…",
+                        desc: "편법 주거 차단을 위해 생활형숙박시설의 주거 사용에 대해 유예 없이 즉시 강한 이행강제금을 부과한다.",
+                        deltas: { approval: -13, stability: -8, trust: -14, publicSatisfaction: -5, regionalSentiment: -5 },
+                        headline: "『편법 주거 차단을 위해 생활형숙박시설의 주거 사용에…』 강행... 수십만 수분양자의 사회적 대란 경고 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 수십만 수분양자의 사회적 대란 경고이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 수분양자의 피해를 막기 위해 오피스텔 용도변경 기준을…",
+                        desc: "수분양자의 피해를 막기 위해 오피스텔 용도변경 기준을 한시적으로 완화하는 계도기간을 부여한다.",
+                        deltas: { approval: 6, stability: 18, trust: 12, publicSatisfaction: 12, regionalSentiment: 12 },
+                        headline: "『수분양자의 피해를 막기 위해 오피스텔 용도변경 기준을…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 생활형숙박시설에 사는 사람들은 집에서 매일 호텔…",
+                        desc: "생활형숙박시설에 사는 사람들은 집에서 매일 호텔 유니폼을 입고 생활하도록 법안을 만든다.",
+                        deltas: { approval: -34, stability: -17, trust: -26, publicSatisfaction: -30, regionalSentiment: -20 },
+                        headline: "「생활형숙박시설에 사는 사람들은 집에서 매일 호텔…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 52,
+                topic: "의제 52: 산업단지진흥원장의 건의",
+                title: "투기 차단을 위해 지식산업센터 분양권 전매를 전면… — 강행이냐 절충이냐",
+                factors: ["지식산업센터"],
+                desc: "산업단지진흥원장이(가) \"지식산업센터 전매를 전면 금지하고 실입주를 10년간 강제하시지요! 지식산업센터 미분양…\"라며 강경 추진을 건의했습니다. 현실에서는 지식산업센터 미분양 폭증 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "지식산업센터 전매를 전면 금지하고 실입주를 10년간 강제하시지요! 지식산업센터 미분양 폭증 비판은 무시할까요?",
+                hongSpeech: "\"기업의 자금 사정에 따른 자산 유동성을 보장하되,…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 지식산업센터에 입주한 대표님들은 출근할 때마다 로봇…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 투기 차단을 위해 지식산업센터 분양권 전매를 전면…",
+                        desc: "투기 차단을 위해 지식산업센터 분양권 전매를 전면 금지하고 10년간 실입주 의무를 강제한다.",
+                        deltas: { approval: -15, stability: -11, trust: -17, publicSatisfaction: -5, regionalSentiment: -10 },
+                        headline: "『투기 차단을 위해 지식산업센터 분양권 전매를 전면…』 강행... 지식산업센터 미분양 폭증 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 지식산업센터 미분양 폭증 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 기업의 자금 사정에 따른 자산 유동성을 보장하되,…",
+                        desc: "기업의 자금 사정에 따른 자산 유동성을 보장하되, 실수요 기업 위주의 입주 자격 심사만 강화한다.",
+                        deltas: { approval: 10, stability: 12, trust: 16, publicSatisfaction: 6, regionalSentiment: 10 },
+                        headline: "『기업의 자금 사정에 따른 자산 유동성을 보장하되,…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 지식산업센터에 입주한 대표님들은 출근할 때마다 로봇…",
+                        desc: "지식산업센터에 입주한 대표님들은 출근할 때마다 로봇 춤을 추며 입구 지문인식을 하게 한다.",
+                        deltas: { approval: -20, stability: -22, trust: -29, publicSatisfaction: -26, regionalSentiment: -22 },
+                        headline: "「지식산업센터에 입주한 대표님들은 출근할 때마다 로봇…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 53,
+                topic: "의제 53: 법무부 차관의 건의",
+                title: "세제 예측 가능성을 위해 공정시장가액비율 등 모든… — 강행이냐 절충이냐",
+                factors: ["공정시장가액비율"],
+                desc: "법무부 차관이(가) \"부동산 세율을 모두 법률로 고정해 정부가 시행령으로 못 바꾸게 죄어버리시지요! 경기…\"라며 강경 추진을 건의했습니다. 현실에서는 경기 변동 시 유연한 정책 대응 불능 우려이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "부동산 세율을 모두 법률로 고정해 정부가 시행령으로 못 바꾸게 죄어버리시지요! 경기 변동 시 유연한 정책 대응 불능 우려는 무시할까요?",
+                hongSpeech: "\"기본 세율은 법률로 정하되, 경제 위기나 급격한 시장…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 부동산 세법 개정안을 정할 때 국민 전체가 모여…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 세제 예측 가능성을 위해 공정시장가액비율 등 모든…",
+                        desc: "세제 예측 가능성을 위해 공정시장가액비율 등 모든 세제 유연성 수단을 폐지하고 법률로 고정한다.",
+                        deltas: { approval: -12, stability: -10, trust: -18, publicSatisfaction: -6, regionalSentiment: -7 },
+                        headline: "『세제 예측 가능성을 위해 공정시장가액비율 등 모든…』 강행... 경기 변동 시 유연한 정책 대응 불능 우려 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 경기 변동 시 유연한 정책 대응 불능 우려이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 기본 세율은 법률로 정하되, 경제 위기나 급격한 시장…",
+                        desc: "기본 세율은 법률로 정하되, 경제 위기나 급격한 시장 변동 시 시행령을 통해 유연하게 탄력 대응한다.",
+                        deltas: { approval: 9, stability: 16, trust: 9, publicSatisfaction: 13, regionalSentiment: 9 },
+                        headline: "『기본 세율은 법률로 정하되, 경제 위기나 급격한 시장…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 부동산 세법 개정안을 정할 때 국민 전체가 모여…",
+                        desc: "부동산 세법 개정안을 정할 때 국민 전체가 모여 묵찌빠를 해서 세율을 결정한다.",
+                        deltas: { approval: -22, stability: -17, trust: -26, publicSatisfaction: -30, regionalSentiment: -17 },
+                        headline: "「부동산 세법 개정안을 정할 때 국민 전체가 모여…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 54,
+                topic: "의제 54: 도시정비기획단장의 건의",
+                title: "도심 정비를 위해 1년 이상 방치된 빈집은 지자체가… — 강행이냐 절충이냐",
+                factors: ["국정 결단", "참모 회의"],
+                desc: "도시정비기획단장이(가) \"도심 방치 빈집을 지자체가 강제로 수용해서 헐어버리시지요! 개인 재산권 침해 소송…\"라며 강경 추진을 건의했습니다. 현실에서는 개인 재산권 침해 소송이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "도심 방치 빈집을 지자체가 강제로 수용해서 헐어버리시지요! 개인 재산권 침해 소송 폭주 비판은 무시하시겠습니까?",
+                hongSpeech: "\"소유자의 자발적 정비를 유도하기 위해 철거비 지원 및…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 도심 방치 빈집을 귀신 집 체험 관광지로 지정해…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 도심 정비를 위해 1년 이상 방치된 빈집은 지자체가…",
+                        desc: "도심 정비를 위해 1년 이상 방치된 빈집은 지자체가 정당한 보상 없이 강제 수용하여 철거한다.",
+                        deltas: { approval: -7, stability: -10, trust: -16, publicSatisfaction: -10, regionalSentiment: -8 },
+                        headline: "『도심 정비를 위해 1년 이상 방치된 빈집은 지자체가…』 강행... 개인 재산권 침해 소송 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 개인 재산권 침해 소송이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 소유자의 자발적 정비를 유도하기 위해 철거비 지원 및…",
+                        desc: "소유자의 자발적 정비를 유도하기 위해 철거비 지원 및 용지 활용 시 세제 혜택을 제공한다.",
+                        deltas: { approval: 10, stability: 11, trust: 14, publicSatisfaction: 14, regionalSentiment: 8 },
+                        headline: "『소유자의 자발적 정비를 유도하기 위해 철거비 지원 및…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 도심 방치 빈집을 귀신 집 체험 관광지로 지정해…",
+                        desc: "도심 방치 빈집을 귀신 집 체험 관광지로 지정해 입장료를 걷어 소유자에게 준다.",
+                        deltas: { approval: -20, stability: -19, trust: -26, publicSatisfaction: -29, regionalSentiment: -12 },
+                        headline: "「도심 방치 빈집을 귀신 집 체험 관광지로 지정해…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 55,
+                topic: "의제 55: 환경교통수석의 건의",
+                title: "무분별한 개발을 막기 위해 모든 주택 정비사업 추진… — 강행이냐 절충이냐",
+                factors: ["부동산 영향평가"],
+                desc: "환경교통수석이(가) \"모든 아파트 정비사업 전에 3년이 걸리는 '부동산 영향평가'를 의무화하시지요! 사업…\"라며 강경 추진을 건의했습니다. 현실에서는 사업 지연으로 공급이 막힌다는 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "모든 아파트 정비사업 전에 3년이 걸리는 '부동산 영향평가'를 의무화하시지요! 사업 지연으로 공급이 막힌다는 비판은 무시할까요?",
+                hongSpeech: "\"대규모 신도시급 개발 사업에 한해서만 간이 영향평가…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 정비사업을 하기 전에 해당 지역 바람의 방향과…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 무분별한 개발을 막기 위해 모든 주택 정비사업 추진…",
+                        desc: "무분별한 개발을 막기 위해 모든 주택 정비사업 추진 시 3년 이상 소요되는 부동산 영향평가를 의무화한다.",
+                        deltas: { approval: -8, stability: -13, trust: -15, publicSatisfaction: -8, regionalSentiment: -5 },
+                        headline: "『무분별한 개발을 막기 위해 모든 주택 정비사업 추진…』 강행... 사업 지연으로 공급이 막힌다는 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 사업 지연으로 공급이 막힌다는 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 대규모 신도시급 개발 사업에 한해서만 간이 영향평가…",
+                        desc: "대규모 신도시급 개발 사업에 한해서만 간이 영향평가 절차를 거치도록 인허가를 간소화한다.",
+                        deltas: { approval: 14, stability: 18, trust: 10, publicSatisfaction: 14, regionalSentiment: 8 },
+                        headline: "『대규모 신도시급 개발 사업에 한해서만 간이 영향평가…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 정비사업을 하기 전에 해당 지역 바람의 방향과…",
+                        desc: "정비사업을 하기 전에 해당 지역 바람의 방향과 길고양이 이동 경로에 미치는 영향만 10년 동안 조사한다.",
+                        deltas: { approval: -29, stability: -22, trust: -32, publicSatisfaction: -29, regionalSentiment: -20 },
+                        headline: "「정비사업을 하기 전에 해당 지역 바람의 방향과…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 56,
+                topic: "의제 56: 세제개혁팀장의 건의",
+                title: "고가 자산 과세 강화를 위해 고가주택 기준 금액을… — 강행이냐 절충이냐",
+                factors: ["고가주택 기준"],
+                desc: "세제개혁팀장이(가) \"고가주택 기준을 9억 원으로 영원히 고정해 두시지요! 집값이 올라 중산층 상당수가…\"라며 강경 추진을 건의했습니다. 현실에서는 층 상당수가 고가주택 세금 폭탄을 맞게 된다는 비판이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "고가주택 기준을 9억 원으로 영원히 고정해 두시지요! 집값이 올라 중산층 상당수가 고가주택 세금 폭탄을 맞게 된다는 비판은 무시할까요?",
+                hongSpeech: "\"중산층의 과도한 세 부담을 방지하기 위해 물가 및…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 집에 금칠이 되어 있거나 정원에 분수대가 있는 집만…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 고가 자산 과세 강화를 위해 고가주택 기준 금액을…",
+                        desc: "고가 자산 과세 강화를 위해 고가주택 기준 금액을 물가 상승과 상관없이 9억 원으로 고정한다.",
+                        deltas: { approval: -9, stability: -8, trust: -9, publicSatisfaction: -7, regionalSentiment: -4 },
+                        headline: "『고가 자산 과세 강화를 위해 고가주택 기준 금액을…』 강행... 층 상당수가 고가주택 세금 폭탄을 맞게 된다는 비판 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 층 상당수가 고가주택 세금 폭탄을 맞게 된다는 비판이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 중산층의 과도한 세 부담을 방지하기 위해 물가 및…",
+                        desc: "중산층의 과도한 세 부담을 방지하기 위해 물가 및 전국 주택 중위가격과 연동하여 고가주택 기준을 상향한다.",
+                        deltas: { approval: 10, stability: 14, trust: 17, publicSatisfaction: 12, regionalSentiment: 15 },
+                        headline: "『중산층의 과도한 세 부담을 방지하기 위해 물가 및…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 집에 금칠이 되어 있거나 정원에 분수대가 있는 집만…",
+                        desc: "집에 금칠이 되어 있거나 정원에 분수대가 있는 집만 고가주택으로 지정한다.",
+                        deltas: { approval: -35, stability: -28, trust: -29, publicSatisfaction: -23, regionalSentiment: -25 },
+                        headline: "「집에 금칠이 되어 있거나 정원에 분수대가 있는 집만…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            },
+            {
+                round: 57,
+                topic: "의제 57: 공공주택기획관의 건의",
+                title: "시장 통제를 위해 민간의 주택 건설을 제한하고, 모든… — 강행이냐 절충이냐",
+                factors: ["국정 결단", "참모 회의"],
+                desc: "공공주택기획관이(가) \"민간 건설사 아파트 건축을 금지하고 100% 공공주도 사업으로만 주택을 공급하시지요!…\"라며 강경 추진을 건의했습니다. 현실에서는 민간 건설업계 도산과 품질 저하 우려이 끊이지 않는 사안이라, 그대로 밀어붙일지 절충안을 택할지를 놓고 참모진 내 의견이 갈립니다.",
+                jungSpeech: "민간 건설사 아파트 건축을 금지하고 100% 공공주도 사업으로만 주택을 공급하시지요! 민간 건설업계 도산과 품질 저하 우려는 무시할까요?",
+                hongSpeech: "\"공공임대 공급과 함께 민간의 자율적인 정비사업 및…\" 정도가 시장에 무리를 주지 않으면서 목표를 이룰 현실적인 방법입니다. 강행보다는 절충이 맞습니다.",
+                kangSpeech: "(파격을 제안하며) 화끈하게 가시려면 이런 방법도 있습니다 — 주택 공급을 위해 국가가 모든 국민에게 레고 블록을…. 효과는 몰라도 화제성 하나는 확실합니다!",
+                options: [
+                    {
+                        title: "[강행 고집] 시장 통제를 위해 민간의 주택 건설을 제한하고, 모든…",
+                        desc: "시장 통제를 위해 민간의 주택 건설을 제한하고, 모든 신규 주택 공급을 국가 공공주도 사업으로 전환한다.",
+                        deltas: { approval: -7, stability: -7, trust: -12, publicSatisfaction: -13, regionalSentiment: -12 },
+                        headline: "『시장 통제를 위해 민간의 주택 건설을 제한하고, 모든…』 강행... 민간 건설업계 도산과 품질 저하 우려 현실화",
+                        detail: "정부가 우려를 무시하고 정책을 밀어붙였지만, 예견되었던 민간 건설업계 도산과 품질 저하 우려이(가) 그대로 터지며 여론이 급격히 악화되었습니다."
+                    },
+                    {
+                        title: "[현실적 절충안] 공공임대 공급과 함께 민간의 자율적인 정비사업 및…",
+                        desc: "공공임대 공급과 함께 민간의 자율적인 정비사업 및 신규 분양 시장 활성화를 균형 있게 추진한다.",
+                        deltas: { approval: 14, stability: 15, trust: 14, publicSatisfaction: 15, regionalSentiment: 12 },
+                        headline: "『공공임대 공급과 함께 민간의 자율적인 정비사업 및…』 절충안 채택... 시장 충격 최소화하며 연착륙",
+                        detail: "극단을 피한 현실적인 대안이 채택되면서 시장의 반발 없이 정책 목표에 다가섰다는 평가가 나왔습니다."
+                    },
+                    {
+                        title: "[황당 발상] 주택 공급을 위해 국가가 모든 국민에게 레고 블록을…",
+                        desc: "주택 공급을 위해 국가가 모든 국민에게 레고 블록을 한 박스씩 나눠주고 직접 집을 쌓아 올리게 한다.",
+                        deltas: { approval: -21, stability: -27, trust: -24, publicSatisfaction: -18, regionalSentiment: -18 },
+                        headline: "「주택 공급을 위해 국가가 모든 국민에게 레고 블록을…」 실제 추진 논란... 국정 난맥상 도마 위",
+                        detail: "비현실적인 발상이 실제 정책으로 추진되며 국내외의 조롱과 함께 정부 정책 능력 전반에 대한 불신이 커졌습니다."
+                    }
+                ]
+            }
+        ];
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, now);
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
+                    gain.gain.setValueAtTime(0.08, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                } else if (type === 'good') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(329.63, now);
+                    osc.frequency.setValueAtTime(440, now + 0.08);
+                    osc.frequency.setValueAtTime(554.37, now + 0.16);
+                    osc.frequency.setValueAtTime(659.25, now + 0.24);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                } else if (type === 'bad') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(260, now);
+                    osc.frequency.setValueAtTime(180, now + 0.1);
+                    osc.frequency.setValueAtTime(120, now + 0.2);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                }
+            } catch (e) {
+                console.log("Audio error", e);
+            }
+        }
+
+        function toggleAudio() {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('sound-icon');
+            if (soundEnabled) {
+                icon.setAttribute('data-lucide', 'volume-2');
+                playSound('click');
+            } else {
+                icon.setAttribute('data-lucide', 'volume-x');
+            }
+            lucide.createIcons();
+        }
+
+        function startGame() {
+            playSound('click');
+            document.getElementById('intro-screen').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            document.getElementById('round-indicator').classList.remove('hidden');
+            document.getElementById('round-indicator').classList.add('flex');
+            
+            currentRound = 0;
+            renderScenario();
+            updateStatsUI();
+        }
+
+        function renderScenario() {
+            const data = scenarios[currentRound];
+            
+            document.getElementById('current-round-num').innerText = data.round;
+            document.getElementById('scenario-tag').innerText = `라운드 ${data.round} / ${scenarios.length}`;
+            document.getElementById('total-round-num').innerText = scenarios.length;
+            document.getElementById('scenario-topic').innerText = data.topic;
+            document.getElementById('scenario-title').innerText = data.title;
+            document.getElementById('scenario-desc').innerText = data.desc;
+
+            // Render Factor Badges
+            const badgesContainer = document.getElementById('factor-badges');
+            badgesContainer.innerHTML = '';
+            data.factors.forEach(factor => {
+                const badge = document.createElement('span');
+                badge.className = 'px-2 py-0.5 bg-slate-800 text-slate-300 rounded border border-slate-700';
+                badge.innerText = `#${factor}`;
+                badgesContainer.appendChild(badge);
+            });
+
+            document.getElementById('speech-jung').innerText = `"${data.jungSpeech}"`;
+            document.getElementById('speech-hong').innerText = `"${data.hongSpeech}"`;
+            document.getElementById('speech-kang').innerText = `"${data.kangSpeech}"`;
+
+            // Options
+            document.getElementById('opt0-title').innerText = data.options[0].title;
+            document.getElementById('opt0-desc').innerText = data.options[0].desc;
+
+            document.getElementById('opt1-title').innerText = data.options[1].title;
+            document.getElementById('opt1-desc').innerText = data.options[1].desc;
+
+            document.getElementById('opt2-title').innerText = data.options[2].title;
+            document.getElementById('opt2-desc').innerText = data.options[2].desc;
+
+            lucide.createIcons();
+        }
+
+        function updateStatsUI() {
+            for (let k in stats) stats[k] = Math.max(0, Math.min(100, stats[k]));
+
+            const uiMap = {
+                approval: 'approval', coreSupport: 'core', saleMarketStability: 'sale',
+                jeonseMarketStability: 'jeonse', policyTrust: 'trust',
+                commonYouthSentiment: 'common', ruralSentiment: 'rural',
+                affluentSentiment: 'affluent', electionWinRate: 'election'
+            };
+            Object.entries(uiMap).forEach(([key, id]) => {
+                document.getElementById(`stat-val-${id}`).innerText = `${Math.round(stats[key])}%`;
+                document.getElementById(`stat-bar-${id}`).style.width = `${stats[key]}%`;
+            });
+        }
+
+        // 기존 5개 선택 효과를 9개 지표로 분산하고, 각 개별 효과는 기존의 약 50% 수준으로 축소
+        function expandDeltas(old) {
+            const half = v => Math.round((v || 0) * 0.5 * 10) / 10;
+            return {
+                approval: half(old.approval),
+                coreSupport: half(old.approval),
+                saleMarketStability: half(old.stability),
+                jeonseMarketStability: half(old.stability),
+                policyTrust: half(old.trust),
+                commonYouthSentiment: half(old.publicSatisfaction),
+                ruralSentiment: half(old.regionalSentiment),
+                affluentSentiment: half(old.publicSatisfaction),
+                electionWinRate: half(old.approval)
+            };
+        }
+
+        function makeChoice(optionIndex) {
+            const scenario = scenarios[currentRound];
+            const selectedOpt = scenario.options[optionIndex];
+
+            // Apply diversified, reduced deltas
+            const d = expandDeltas(selectedOpt.deltas);
+            for (const key in d) stats[key] += d[key];
+
+            updateStatsUI();
+
+            // Play sound based on result quality
+            if (optionIndex === 1) playSound('good');
+            else playSound('bad');
+
+            // 결과를 팝업으로 막지 않고 오른쪽 기록 영역에 누적
+            addResultHistory(scenario, selectedOpt, optionIndex);
+
+            // 즉시 다음 의제로 이동
+            nextRound();
+        }
+
+        function addResultHistory(scenario, option, optionIndex) {
+            resultHistory.push({
+                round: scenario.round,
+                topic: scenario.topic,
+                choiceNumber: optionIndex + 1,
+                choiceTitle: option.title,
+                headline: option.headline,
+                detail: option.detail,
+                deltas: expandDeltas(option.deltas)
+            });
+
+            const list = document.getElementById('result-history-list');
+            const empty = document.getElementById('result-history-empty');
+            if (empty) empty.remove();
+
+            const statNames = {
+                approval: '지지율', coreSupport: '코어지지율',
+                saleMarketStability: '매매시장안정', jeonseMarketStability: '전세시장안정',
+                policyTrust: '정책신뢰도', commonYouthSentiment: '서민청년민심',
+                ruralSentiment: '지방농촌민심', affluentSentiment: '부유층민심',
+                electionWinRate: '다음선거승률'
+            };
+
+            const deltaItems = Object.entries(expandDeltas(option.deltas)).map(([key, val]) => {
+                const colorClass = val > 0
+                    ? 'text-emerald-400'
+                    : (val < 0 ? 'text-rose-400' : 'text-slate-400');
+                const sign = val > 0 ? '+' : '';
+                return `
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-navy-950/80 border border-slate-800">
+                        <span class="text-slate-500">${statNames[key]}</span>
+                        <b class="${colorClass}">${sign}${val}%</b>
+                    </span>
+                `;
+            }).join('');
+
+            const card = document.createElement('article');
+            card.className = 'result-history-card rounded-xl border border-slate-700/80 bg-navy-950/80 p-3 shadow-md';
+            card.innerHTML = `
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <span class="text-[10px] font-bold text-gold-400">국정 의제 ${scenario.round}</span>
+                    <span class="text-[10px] text-slate-500">선택 ${optionIndex + 1}</span>
+                </div>
+                <div class="text-xs font-bold text-white leading-snug mb-2">${escapeHtml(option.title)}</div>
+                <div class="border-l-2 border-gold-600/50 pl-2 mb-2">
+                    <div class="text-[11px] font-semibold text-slate-200 leading-snug">"${escapeHtml(option.headline)}"</div>
+                    <p class="text-[10px] text-slate-400 leading-relaxed mt-1">${escapeHtml(option.detail)}</p>
+                </div>
+                <div class="flex flex-wrap gap-1">${deltaItems}</div>
+            `;
+
+            // 최신 결과를 항상 기록창의 맨 위에 추가
+            list.prepend(card);
+
+            const count = document.getElementById('result-history-count');
+            if (count) count.textContent = `${resultHistory.length}건`;
+
+            // 새 결과가 들어오면 맨 위가 보이도록 유지
+            list.scrollTo({ top: 0, behavior: 'smooth' });
+            lucide.createIcons();
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function nextRound() {
+            playSound('click');
+
+            currentRound++;
+            if (currentRound < scenarios.length) {
+                renderScenario();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                showEnding();
+            }
+        }
+
+        function showEnding() {
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById('ending-screen').classList.remove('hidden');
+
+            let title = "";
+            let desc = "";
+            let badgeIcon = "award";
+            let typeText = "";
+
+            // Ending conditions based on final stat values
+            if (stats.approval < 20 || stats.policyTrust < 20 || stats.commonYouthSentiment < 20) {
+                typeText = "ENDING 1 : 정권 퇴진 및 국회 탄핵 발의 위기";
+                title = "국민적 불복종 운동과 탄핵 국면 봉착";
+                badgeIcon = "alert-triangle";
+                desc = `초강력 대출 차단으로 현금 부자 리그를 만들어주고, '폐버스 청년주택' 논란과 '우리 딸 모욕' 버럭 소동, 그리고 대통령 자택의 17억 셀러 파이낸싱(근저당) 매각 논란까지 겹치며 온 국민의 분노가 상쇄 불가능한 수준으로 폭발했습니다.
+
+지지율은 ${stats.approval}%까지 폭락했으며, 2030 청년층과 무주택 서민, 다주택자와 임대사업자까지 연대한 전국적인 정권 퇴진 촛불 집회가 청와대 앞을 메웠습니다. 국회에서는 여당 이탈표 속에 대통령 탄핵소추안이 기습 발의되었습니다.`;
+            } else if (stats.saleMarketStability < 25 && stats.jeonseMarketStability < 25 && stats.ruralSentiment < 25) {
+                typeText = "ENDING 2 : 초양극화 국가 분열 및 부동산 대붕괴";
+                title = "서울 쏠림 가중 & 지방 건설 연쇄 부도 파동";
+                badgeIcon = "slash";
+                desc = `서울 핵심지에만 쏠린 핀셋 규제와 징벌적 세제 고수로 인해 수도권과 지방 간 자산 격차가 돌이킬 수 없을 정도로 벌어졌습니다.
+
+지방 부동산 시장은 미분양 적체와 매수세 침체로 완전 붕괴하여 지역 중소 건설사들이 연쇄 부도를 맞았습니다. 서울 신축 아파트 가격은 공급 절벽으로 신고가를 경신하는 동안 지방은 고사하는 초양극화 상태로 국토가 분열되었습니다.`;
+            } else if (stats.approval > 50 && stats.policyTrust > 50 && stats.commonYouthSentiment > 50 && stats.electionWinRate > 50) {
+                typeText = "ENDING 3 : 시장 자율 회복 & 민심 수습 성공";
+                title = "내 집 마련 사다리 복원과 부동산 연착륙 과업 달성";
+                badgeIcon = "crown";
+                desc = `대통령의 용기 있는 사과와 시장 친화적인 부동산 대전환 결단이 빛을 발했습니다!
+
+자택 매각 논란을 솔직한 사과와 채권 환원으로 조기 진화하고, 무주택 청년 DSR 유연화, 양도세 중과 유예, 상생임대인 인센티브 파격 확대, 재초환 폐지를 차례로 단행하여 시장 유통 매물과 도심 아파트 공급을 획기적으로 늘렸습니다.
+
+"모두 임대주택에나 살라는 거냐"던 국민적 분노가 사라지고, 내 집 마련 사다리가 복원되며 정권 재창출의 기틀을 마련했습니다.`;
+            } else {
+                typeText = "ENDING 4 : 땜질식 통제와 만성적 국정 난맥상";
+                title = "누더기 규제 연명 & 국민 불신 고착화";
+                badgeIcon = "scale";
+                desc = `규제 완화와 강행을 번복하는 땜질식 처방으로 부동산 시장의 근본적 불안 요소가 계속 잔존했습니다.
+
+대출 규제로 청년들의 불만은 완전히 사라지지 않았고, 전세의 월세화와 양도세 중과로 인한 매물 잠김 현상이 지속되었습니다. 대통령 자택 셀러 파이낸싱 매각 건은 임기 내내 야당의 '내로남불' 공격 카드로 활용되며 무난하지만 서글픈 국정 지지율로 임기를 마치게 되었습니다.`;
+            }
+
+            document.getElementById('ending-type').innerText = typeText;
+            document.getElementById('ending-title').innerText = title;
+            document.getElementById('ending-desc').innerText = desc;
+
+            const finalMap = {
+                approval: 'final-approval', coreSupport: 'final-core', saleMarketStability: 'final-sale',
+                jeonseMarketStability: 'final-jeonse', policyTrust: 'final-trust',
+                commonYouthSentiment: 'final-common', ruralSentiment: 'final-rural',
+                affluentSentiment: 'final-affluent', electionWinRate: 'final-election'
+            };
+            Object.entries(finalMap).forEach(([key, id]) => {
+                document.getElementById(id).innerText = `${Math.round(stats[key])}%`;
+            });
+
+            const badge = document.getElementById('ending-badge');
+            badge.innerHTML = `<i data-lucide="${badgeIcon}" class="w-10 h-10"></i>`;
+
+            lucide.createIcons();
+        }
+
+        function resetGame() {
+            playSound('click');
+        let stats = {
+            approval: 80,
+            coreSupport: 80,
+            saleMarketStability: 80,
+            jeonseMarketStability: 80,
+            policyTrust: 80,
+            commonYouthSentiment: 80,
+            ruralSentiment: 80,
+            affluentSentiment: 80,
+            electionWinRate: 80
+        };
+            currentRound = 0;
+            resultHistory = [];
+
+            const historyList = document.getElementById('result-history-list');
+            if (historyList) {
+                historyList.innerHTML = `
+                    <div id="result-history-empty" class="py-10 text-center text-xs text-slate-500 leading-relaxed">
+                        선택을 실행하면<br>결과가 이곳에 차곡차곡 쌓입니다.
+                    </div>
+                `;
+            }
+            const historyCount = document.getElementById('result-history-count');
+            if (historyCount) historyCount.textContent = '0건';
+
+            document.getElementById('ending-screen').classList.add('hidden');
+            document.getElementById('intro-screen').classList.remove('hidden');
+            document.getElementById('round-indicator').classList.add('hidden');
+            updateStatsUI();
+        }
+
+        window.onload = function() {
+            lucide.createIcons();
+        };
+    </script>
+</body>
+</html>
